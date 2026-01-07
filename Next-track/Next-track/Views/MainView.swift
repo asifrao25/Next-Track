@@ -300,7 +300,7 @@ struct MainView: View {
         } label: {
             MapPreviewView(
                 location: locationManager.currentLocation,
-                recentLocations: locationManager.recentLocations
+                sessionLocations: historyManager.currentSession?.locations ?? []
             )
             .frame(height: 200)
             .cornerRadius(12)
@@ -481,8 +481,38 @@ struct MainView: View {
     }
 
     private func setupLocationCallback() {
+        // Capture references directly to avoid SwiftUI view lifecycle issues
+        let historyMgr = TrackingHistoryManager.shared
+        let phoneTrk = phoneTrackAPI
+        let settingsMgr = settingsManager
+        let connMon = connectionMonitor
+        let battMon = batteryMonitor
+        let locMgr = locationManager
+
         locationManager.onLocationUpdate = { location in
-            sendLocation(location)
+            // Record location to history (this was failing before due to closure capture)
+            historyMgr.addLocation(location)
+
+            let distance = locMgr.getDistanceFromLastSent() ?? 0
+
+            phoneTrk.sendLocation(location) { result in
+                switch result {
+                case .success:
+                    settingsMgr.recordSuccessfulSend(distance: distance)
+                    connMon.recordSuccessfulSend()
+                    HapticManager.shared.locationSent()
+                case .failure:
+                    settingsMgr.recordFailedSend()
+                    connMon.recordFailedSend()
+                    if settingsMgr.trackingSettings.retryFailedSends {
+                        let locationData = LocationData(
+                            from: location,
+                            batteryLevel: battMon.batteryLevel
+                        )
+                        PendingLocationQueue.shared.add(locationData)
+                    }
+                }
+            }
         }
     }
 
@@ -495,30 +525,6 @@ struct MainView: View {
         geofenceManager.onShouldStopTracking = { [self] in
             if isTracking {
                 stopTracking()
-            }
-        }
-    }
-
-    private func sendLocation(_ location: CLLocation) {
-        let distance = locationManager.getDistanceFromLastSent() ?? 0
-        historyManager.addLocation(location)
-
-        phoneTrackAPI.sendLocation(location) { result in
-            switch result {
-            case .success:
-                settingsManager.recordSuccessfulSend(distance: distance)
-                connectionMonitor.recordSuccessfulSend()
-                HapticManager.shared.locationSent()
-            case .failure:
-                settingsManager.recordFailedSend()
-                connectionMonitor.recordFailedSend()
-                if settingsManager.trackingSettings.retryFailedSends {
-                    let locationData = LocationData(
-                        from: location,
-                        batteryLevel: batteryMonitor.batteryLevel
-                    )
-                    PendingLocationQueue.shared.add(locationData)
-                }
             }
         }
     }

@@ -11,7 +11,7 @@ import CoreLocation
 
 struct MapPreviewView: View {
     let location: CLLocation?
-    let recentLocations: [CLLocation]
+    let sessionLocations: [StoredLocation]  // Full session track
 
     @State private var position: MapCameraPosition = .automatic
 
@@ -39,11 +39,20 @@ struct MapPreviewView: View {
                     .stroke(Color.blue.opacity(0.3), lineWidth: 1)
             }
 
-            // Track path
-            if recentLocations.count > 1 {
-                let coordinates = recentLocations.map { $0.coordinate }
+            // Full session track path
+            if sessionLocations.count > 1 {
+                let coordinates = sessionLocations.map { $0.coordinate }
                 MapPolyline(coordinates: coordinates)
                     .stroke(Color.blue, lineWidth: 3)
+            }
+
+            // Start point marker
+            if let first = sessionLocations.first {
+                Annotation("Start", coordinate: first.coordinate) {
+                    Image(systemName: "flag.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                }
             }
         }
         .mapStyle(.standard(elevation: .realistic))
@@ -80,9 +89,11 @@ struct MapPreviewView: View {
 struct FullMapView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var locationManager: LocationManager
+    @StateObject private var historyManager = TrackingHistoryManager.shared
 
     @State private var position: MapCameraPosition = .automatic
     @State private var mapStyle: MapStyleOption = .standard
+    @State private var showAllHistory = true  // Show historical paths by default
 
     enum MapStyleOption: String, CaseIterable {
         case standard = "Standard"
@@ -90,10 +101,25 @@ struct FullMapView: View {
         case hybrid = "Hybrid"
     }
 
+    // Get all locations from current session
+    private var sessionLocations: [StoredLocation] {
+        historyManager.currentSession?.locations ?? []
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(position: $position) {
+                    // Historical session paths (gray, behind current)
+                    if showAllHistory {
+                        ForEach(historyManager.sessions) { session in
+                            if session.locations.count > 1 {
+                                MapPolyline(coordinates: session.locations.map { $0.coordinate })
+                                    .stroke(Color.gray.opacity(0.5), lineWidth: 2)
+                            }
+                        }
+                    }
+
                     // Current location
                     if let loc = locationManager.currentLocation {
                         Annotation("Current Location", coordinate: loc.coordinate) {
@@ -116,14 +142,14 @@ struct FullMapView: View {
                             .stroke(Color.blue.opacity(0.4), lineWidth: 2)
                     }
 
-                    // Track path
-                    if locationManager.recentLocations.count > 1 {
-                        let coordinates = locationManager.recentLocations.map { $0.coordinate }
+                    // Current session track path (blue, on top)
+                    if sessionLocations.count > 1 {
+                        let coordinates = sessionLocations.map { $0.coordinate }
                         MapPolyline(coordinates: coordinates)
                             .stroke(Color.blue, lineWidth: 4)
 
                         // Start point marker
-                        if let first = locationManager.recentLocations.first {
+                        if let first = sessionLocations.first {
                             Annotation("Start", coordinate: first.coordinate) {
                                 Image(systemName: "flag.fill")
                                     .foregroundColor(.green)
@@ -159,10 +185,23 @@ struct FullMapView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        centerOnCurrentLocation()
-                    } label: {
-                        Image(systemName: "location.fill")
+                    HStack(spacing: 16) {
+                        // History toggle button
+                        Button {
+                            withAnimation {
+                                showAllHistory.toggle()
+                            }
+                        } label: {
+                            Image(systemName: showAllHistory ? "clock.fill" : "clock")
+                                .foregroundColor(showAllHistory ? .blue : .primary)
+                        }
+
+                        // Center on location button
+                        Button {
+                            centerOnCurrentLocation()
+                        } label: {
+                            Image(systemName: "location.fill")
+                        }
                     }
                 }
             }
@@ -202,7 +241,7 @@ struct FullMapView: View {
 #Preview("Map Preview") {
     MapPreviewView(
         location: CLLocation(latitude: 37.7749, longitude: -122.4194),
-        recentLocations: []
+        sessionLocations: []
     )
     .frame(height: 200)
 }

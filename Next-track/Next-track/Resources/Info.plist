@@ -35,6 +35,7 @@
     <array>
         <string>com.nexttrack.refresh</string>
         <string>com.nexttrack.processing</string>
+        <string>com.nexttrack.dailyexport</string>
     </array>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Next-track needs continuous location access to send your position to Nextcloud PhoneTrack, even when the app is in the background.</string>

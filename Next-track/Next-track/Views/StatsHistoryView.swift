@@ -6,11 +6,19 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct StatsHistoryView: View {
     @StateObject private var historyManager = TrackingHistoryManager.shared
+    @StateObject private var autoExportManager = AutoExportManager.shared
     @State private var selectedTimeRange: TimeRange = .today
     @State private var showClearConfirmation = false
+    @State private var showExportSheet = false
+    @State private var exportURL: URL?
+    @State private var showImportPicker = false
+    @State private var importError: String?
+    @State private var showImportError = false
+    @State private var showFolderPicker = false
 
     enum TimeRange: String, CaseIterable {
         case today = "Today"
@@ -40,6 +48,9 @@ struct StatsHistoryView: View {
                     // Connection Status
                     connectionStatusCard
 
+                    // Auto Export Settings
+                    autoExportCard
+
                     // Session History
                     sessionHistorySection
                 }
@@ -49,6 +60,31 @@ struct StatsHistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        // Export options
+                        Menu {
+                            Button {
+                                exportAllToGPX()
+                            } label: {
+                                Label("Export as GPX (for Maps)", systemImage: "map")
+                            }
+
+                            Button {
+                                exportAllToJSON()
+                            } label: {
+                                Label("Export as JSON (Backup)", systemImage: "doc.text")
+                            }
+                        } label: {
+                            Label("Export All Data", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button {
+                            showImportPicker = true
+                        } label: {
+                            Label("Import Data", systemImage: "square.and.arrow.down")
+                        }
+
+                        Divider()
+
                         Button(role: .destructive) {
                             showClearConfirmation = true
                         } label: {
@@ -67,6 +103,174 @@ struct StatsHistoryView: View {
             } message: {
                 Text("This will permanently delete all tracking history. This action cannot be undone.")
             }
+            .alert("Import Error", isPresented: $showImportError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importError ?? "Failed to import data")
+            }
+            .sheet(isPresented: $showExportSheet) {
+                if let url = exportURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+            .fileImporter(
+                isPresented: $showImportPicker,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImport(result)
+            }
+            .fileImporter(
+                isPresented: $showFolderPicker,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFolderSelection(result)
+            }
+        }
+    }
+
+    // MARK: - Auto Export Card
+
+    private var autoExportCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundColor(.blue)
+                Text("Auto Export")
+                    .font(.headline)
+                Spacer()
+            }
+
+            Toggle("Export daily at midnight", isOn: $autoExportManager.isEnabled)
+                .disabled(autoExportManager.exportFolderURL == nil)
+
+            // Folder selection
+            Button {
+                showFolderPicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "folder")
+                    if let folderURL = autoExportManager.exportFolderURL {
+                        Text(folderURL.lastPathComponent)
+                            .lineLimit(1)
+                    } else {
+                        Text("Select export folder")
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(autoExportManager.exportFolderURL != nil ? .green : .blue)
+
+            // Last export info
+            if let lastExport = autoExportManager.lastExportDate {
+                HStack {
+                    Text("Last export:")
+                        .foregroundColor(.secondary)
+                    Text(lastExport, style: .relative)
+                    Text("ago")
+                        .foregroundColor(.secondary)
+                }
+                .font(.caption)
+
+                if !autoExportManager.lastExportStatus.isEmpty {
+                    Text(autoExportManager.lastExportStatus)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Manual export button - exports today's sessions
+            Button {
+                autoExportManager.performDailyExport(forToday: true)
+            } label: {
+                Label("Export Today", systemImage: "square.and.arrow.up")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .disabled(autoExportManager.exportFolderURL == nil)
+
+            // Info text
+            Text("Auto-exports previous day's data at midnight. 'Export Today' saves current day's sessions.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+
+    private func handleFolderSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                autoExportManager.setExportFolder(url)
+            }
+        case .failure(let error):
+            print("[StatsHistory] Folder selection failed: \(error)")
+        }
+    }
+
+    // MARK: - Export Functions
+
+    private func exportAllToGPX() {
+        let gpxContent = historyManager.exportAllSessionsToGPX()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "NextTrack-Export-\(dateFormatter.string(from: Date())).gpx"
+
+        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
+            exportURL = url
+            showExportSheet = true
+        }
+    }
+
+    private func exportAllToJSON() {
+        guard let jsonData = historyManager.exportAllSessionsToJSON() else { return }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "NextTrack-Backup-\(dateFormatter.string(from: Date())).json"
+
+        if let url = historyManager.saveJSONFile(data: jsonData, filename: filename) {
+            exportURL = url
+            showExportSheet = true
+        }
+    }
+
+    private func handleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+
+            // Start accessing security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                importError = "Cannot access the selected file"
+                showImportError = true
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            do {
+                let data = try Data(contentsOf: url)
+                if historyManager.importSessionsFromJSON(data) {
+                    // Success - no need to show anything
+                } else {
+                    importError = "Invalid file format. Please select a valid Next Track backup file."
+                    showImportError = true
+                }
+            } catch {
+                importError = "Failed to read file: \(error.localizedDescription)"
+                showImportError = true
+            }
+
+        case .failure(let error):
+            importError = error.localizedDescription
+            showImportError = true
         }
     }
 
@@ -200,6 +404,9 @@ struct StatsHistoryView: View {
                 Text("Recent Sessions")
                     .font(.headline)
                 Spacer()
+                Text("\(sessionsToShow.count) sessions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             .padding(.horizontal)
 
@@ -219,13 +426,33 @@ struct StatsHistoryView: View {
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(sessionsToShow) { session in
-                        SessionRowView(session: session) {
-                            historyManager.deleteSession(session)
-                        }
+                        SessionRowView(
+                            session: session,
+                            onDelete: {
+                                historyManager.deleteSession(session)
+                            },
+                            onExport: { session in
+                                exportSessionToGPX(session)
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal)
             }
+        }
+    }
+
+    // MARK: - Export Single Session
+
+    private func exportSessionToGPX(_ session: TrackingSession) {
+        let gpxContent = historyManager.exportSessionToGPX(session)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd-HHmm"
+        let filename = "NextTrack-\(dateFormatter.string(from: session.startTime)).gpx"
+
+        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
+            exportURL = url
+            showExportSheet = true
         }
     }
 
@@ -321,55 +548,243 @@ struct StatCardLarge: View {
     }
 }
 
-// MARK: - Session Row View
+// MARK: - Session Row View (Collapsible)
 
 struct SessionRowView: View {
     let session: TrackingSession
     let onDelete: () -> Void
+    let onExport: (TrackingSession) -> Void
 
+    @State private var isExpanded = false
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(session.startTime, style: .date)
-                    .font(.headline)
+        VStack(spacing: 0) {
+            // Header (always visible) - entire row is tappable
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(session.startTime, style: .date)
+                            .font(.headline)
+                            .foregroundColor(.primary)
 
-                HStack(spacing: 12) {
-                    Label(session.formattedDuration, systemImage: "clock")
-                    Label(session.formattedDistance, systemImage: "figure.walk")
-                    Label("\(session.pointsCount) pts", systemImage: "mappin")
+                        if session.isActive {
+                            Text("LIVE")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green)
+                                .cornerRadius(4)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Label(session.formattedDuration, systemImage: "clock")
+                        Label(session.formattedDistance, systemImage: "figure.walk")
+                        Label("\(session.pointsCount) pts", systemImage: "mappin")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
 
-                if session.isActive {
-                    Text("Active")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.green)
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .padding()
+            .contentShape(Rectangle())  // Makes entire area tappable
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
                 }
             }
 
-            Spacer()
+            // Expanded details
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal)
 
-            Button {
-                showDeleteConfirmation = true
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
+                VStack(spacing: 16) {
+                    // Time details
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Started")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(session.startTime, style: .time)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Ended")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if let endTime = session.endTime {
+                                Text(endTime, style: .time)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            } else {
+                                Text("In Progress")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
+
+                    // Stats grid
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 12) {
+                        SessionStatItem(
+                            title: "Duration",
+                            value: session.formattedDuration,
+                            icon: "clock.fill",
+                            color: .blue
+                        )
+
+                        SessionStatItem(
+                            title: "Distance",
+                            value: session.formattedDistance,
+                            icon: "figure.walk",
+                            color: .green
+                        )
+
+                        SessionStatItem(
+                            title: "Points",
+                            value: "\(session.pointsCount)",
+                            icon: "mappin.circle.fill",
+                            color: .orange
+                        )
+
+                        SessionStatItem(
+                            title: "Avg Speed",
+                            value: session.formattedAverageSpeed,
+                            icon: "speedometer",
+                            color: .purple
+                        )
+
+                        if let maxAlt = session.maxAltitude {
+                            SessionStatItem(
+                                title: "Max Alt",
+                                value: String(format: "%.0f m", maxAlt),
+                                icon: "mountain.2.fill",
+                                color: .teal
+                            )
+                        } else {
+                            SessionStatItem(
+                                title: "Max Alt",
+                                value: "--",
+                                icon: "mountain.2.fill",
+                                color: .gray
+                            )
+                        }
+
+                        if let avgAccuracy = session.averageAccuracy {
+                            SessionStatItem(
+                                title: "Accuracy",
+                                value: String(format: "%.0f m", avgAccuracy),
+                                icon: "scope",
+                                color: .indigo
+                            )
+                        } else {
+                            SessionStatItem(
+                                title: "Accuracy",
+                                value: "--",
+                                icon: "scope",
+                                color: .gray
+                            )
+                        }
+                    }
+
+                    // Action buttons
+                    HStack(spacing: 12) {
+                        Button {
+                            onExport(session)
+                        } label: {
+                            Label("Export GPX", systemImage: "square.and.arrow.up")
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                    }
+                }
+                .padding()
             }
         }
-        .padding()
         .background(Color(.systemGray6))
-        .cornerRadius(10)
+        .cornerRadius(12)
         .alert("Delete Session?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 onDelete()
             }
+        } message: {
+            Text("This will permanently delete this tracking session and all its data.")
         }
     }
+}
+
+// MARK: - Session Stat Item
+
+struct SessionStatItem: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.1))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Preview

@@ -37,6 +37,9 @@ class BackgroundTaskManager {
             self.handleBackgroundProcessing(task: task as! BGProcessingTask)
         }
 
+        // Register auto-export task
+        AutoExportManager.shared.registerBackgroundTask()
+
         print("[BackgroundTaskManager] Registered background tasks")
     }
 

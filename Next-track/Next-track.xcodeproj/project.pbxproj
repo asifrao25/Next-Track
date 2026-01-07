@@ -30,6 +30,7 @@
 		E0A6A9182F0DDAF900D86263 /* StatsHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */; };
 		E0A6A91A2F0DDB1A00D86263 /* GeofenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A9192F0DDB1A00D86263 /* GeofenceSettingsView.swift */; };
 		E0A6A91C2F0DE02400D86263 /* CustomTitleHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A91B2F0DE02400D86263 /* CustomTitleHeaderView.swift */; };
+		E0A6A91E2F0E5F2200D86263 /* AutoExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A91D2F0E5F2200D86263 /* AutoExportManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +58,7 @@
 		E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsHistoryView.swift; sourceTree = "<group>"; };
 		E0A6A9192F0DDB1A00D86263 /* GeofenceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeofenceSettingsView.swift; sourceTree = "<group>"; };
 		E0A6A91B2F0DE02400D86263 /* CustomTitleHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTitleHeaderView.swift; sourceTree = "<group>"; };
+		E0A6A91D2F0E5F2200D86263 /* AutoExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoExportManager.swift; sourceTree = "<group>"; };
 		E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPreviewView.swift; sourceTree = "<group>"; };
 		FEB78ECA975363312D362521 /* PhoneTrackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneTrackAPI.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -65,6 +67,7 @@
 		45AE7EF169958114A8E6B25C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E0A6A91D2F0E5F2200D86263 /* AutoExportManager.swift */,
 				7E93E270147565F75E368E4D /* BackgroundTaskManager.swift */,
 				9899C19CAEA479C655094AFE /* BatteryMonitor.swift */,
 				C8DE6F4F200B07538B356767 /* LocationManager.swift */,
@@ -229,6 +232,7 @@
 				9B29C10F80635B8C9AB13106 /* BackgroundTaskManager.swift in Sources */,
 				E0A6A91A2F0DDB1A00D86263 /* GeofenceSettingsView.swift in Sources */,
 				E0A6A9112F0DD8C600D86263 /* ConnectionMonitor.swift in Sources */,
+				E0A6A91E2F0E5F2200D86263 /* AutoExportManager.swift in Sources */,
 				E0A6A9122F0DD8C600D86263 /* GeofenceManager.swift in Sources */,
 				D5F89A5F1DF16B39C36B02DC /* BatteryMonitor.swift in Sources */,
 				E0A6A9182F0DDAF900D86263 /* StatsHistoryView.swift in Sources */,
