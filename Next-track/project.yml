@@ -1,0 +1,64 @@
+# XcodeGen Project Specification
+# Install XcodeGen: brew install xcodegen
+# Generate project: cd Next-track && xcodegen generate
+
+name: Next-track
+options:
+  bundleIdPrefix: com.personal
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    INFOPLIST_FILE: "Next-track/Resources/Info.plist"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  Next-track:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Next-track/App
+      - path: Next-track/Models
+      - path: Next-track/Services
+      - path: Next-track/Views
+      - path: Next-track/Utilities
+      - path: Next-track/Resources/Assets.xcassets
+      - path: Next-track/Resources/Info.plist
+        buildPhase: none
+      - path: Next-track/Resources/Next-track.entitlements
+        buildPhase: none
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.personal.next-track
+        INFOPLIST_FILE: Next-track/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        ENABLE_PREVIEWS: YES
+
+
+    entitlements:
+      path: Next-track/Resources/Next-track.entitlements
+
+schemes:
+  Next-track:
+    build:
+      targets:
+        Next-track: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

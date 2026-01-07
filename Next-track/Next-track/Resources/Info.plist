@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.nexttrack.refresh</string>
+        <string>com.nexttrack.processing</string>
+    </array>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Next-track needs continuous location access to send your position to Nextcloud PhoneTrack, even when the app is in the background.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Next-track needs location access to send your position to Nextcloud PhoneTrack.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Next-track needs always-on location access to track your position continuously and send it to Nextcloud PhoneTrack.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Next-track uses the camera to scan QR codes from PhoneTrack for easy configuration.</string>
+    <key>NSMotionUsageDescription</key>
+    <string>Next-track uses motion data to detect when you're moving and adjust tracking frequency accordingly to save battery.</string>
+</dict>
+</plist>
