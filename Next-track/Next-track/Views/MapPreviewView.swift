@@ -165,17 +165,37 @@ struct FullMapView: View {
         historyManager.currentSession?.locations ?? []
     }
 
+    // Sessions from today (completed, not the active one)
+    private var todaysSessions: [TrackingSession] {
+        let calendar = Calendar.current
+        return historyManager.sessions.filter { calendar.isDateInToday($0.startTime) }
+    }
+
+    // Sessions from previous days
+    private var historicalSessions: [TrackingSession] {
+        let calendar = Calendar.current
+        return historyManager.sessions.filter { !calendar.isDateInToday($0.startTime) }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(position: $position) {
-                    // Historical session paths (gray, behind current)
+                    // Historical session paths (light green - older days)
                     if showAllHistory {
-                        ForEach(historyManager.sessions) { session in
+                        ForEach(historicalSessions) { session in
                             if session.locations.count > 1 {
                                 MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                                    .stroke(Color.gray.opacity(0.5), lineWidth: 2)
+                                    .stroke(Color.green.opacity(0.6), lineWidth: 2)
                             }
+                        }
+                    }
+
+                    // Today's completed sessions (bright red)
+                    ForEach(todaysSessions) { session in
+                        if session.locations.count > 1 {
+                            MapPolyline(coordinates: session.locations.map { $0.coordinate })
+                                .stroke(Color.red, lineWidth: 3)
                         }
                     }
 
@@ -201,11 +221,11 @@ struct FullMapView: View {
                             .stroke(Color.blue.opacity(0.4), lineWidth: 2)
                     }
 
-                    // Current session track path (blue, on top)
+                    // Current session track path (bright red, on top)
                     if sessionLocations.count > 1 {
                         let coordinates = sessionLocations.map { $0.coordinate }
                         MapPolyline(coordinates: coordinates)
-                            .stroke(Color.blue, lineWidth: 4)
+                            .stroke(Color.red, lineWidth: 4)
 
                         // Start point marker
                         if let first = sessionLocations.first {
