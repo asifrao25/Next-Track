@@ -11,12 +11,47 @@ import CoreLocation
 
 struct MapPreviewView: View {
     let location: CLLocation?
-    let sessionLocations: [StoredLocation]  // Full session track
+    let sessionLocations: [StoredLocation]  // Current session track
+    let historicalSessions: [TrackingSession]  // Past sessions
+    @Binding var position: MapCameraPosition  // Map camera position
 
-    @State private var position: MapCameraPosition = .automatic
+    @State private var mapId = UUID()  // Force map refresh
+
+    // Filter to only sessions that have actual location data
+    private var sessionsWithLocations: [TrackingSession] {
+        historicalSessions.filter { !$0.locations.isEmpty }
+    }
+
+    // Get the best locations to display on map
+    private var displayLocations: [StoredLocation] {
+        // Prefer current session, fall back to most recent historical session with locations
+        if !sessionLocations.isEmpty {
+            return sessionLocations
+        } else if let mostRecent = sessionsWithLocations.first {
+            return mostRecent.locations
+        }
+        return []
+    }
 
     var body: some View {
         Map(position: $position) {
+            // Historical session paths (orange, behind current)
+            ForEach(sessionsWithLocations.prefix(5)) { session in
+                if session.locations.count > 1 {
+                    MapPolyline(coordinates: session.locations.map { $0.coordinate })
+                        .stroke(Color.orange.opacity(0.6), lineWidth: 3)
+                }
+
+                // Show start marker for each historical session
+                if let first = session.locations.first {
+                    Annotation("", coordinate: first.coordinate) {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            }
+
             // Current location marker
             if let loc = location {
                 Annotation("Current", coordinate: loc.coordinate) {
@@ -39,39 +74,53 @@ struct MapPreviewView: View {
                     .stroke(Color.blue.opacity(0.3), lineWidth: 1)
             }
 
-            // Full session track path
+            // Current session track path (blue, on top)
             if sessionLocations.count > 1 {
                 let coordinates = sessionLocations.map { $0.coordinate }
                 MapPolyline(coordinates: coordinates)
-                    .stroke(Color.blue, lineWidth: 3)
+                    .stroke(Color.blue, lineWidth: 4)
             }
 
-            // Start point marker
-            if let first = sessionLocations.first {
+            // Start point marker for current or most recent session
+            if let first = displayLocations.first {
                 Annotation("Start", coordinate: first.coordinate) {
                     Image(systemName: "flag.fill")
                         .foregroundColor(.green)
-                        .font(.caption)
+                        .font(.title3)
+                }
+            }
+
+            // End point marker if session has ended
+            if sessionLocations.isEmpty, let lastSession = sessionsWithLocations.first,
+               let last = lastSession.locations.last {
+                Annotation("End", coordinate: last.coordinate) {
+                    Image(systemName: "flag.checkered")
+                        .foregroundColor(.red)
+                        .font(.title3)
                 }
             }
         }
+        .id(mapId)  // Force refresh when ID changes
         .mapStyle(.standard(elevation: .realistic))
         .mapControls {
             MapCompass()
         }
-        .onChange(of: location) { _, newLocation in
-            if let loc = newLocation {
-                withAnimation {
-                    position = .camera(MapCamera(
-                        centerCoordinate: loc.coordinate,
-                        distance: 1000,
-                        heading: 0,
-                        pitch: 0
-                    ))
-                }
-            }
+        .onChange(of: historicalSessions.count) { _, _ in
+            // Force map refresh when sessions change
+            mapId = UUID()
         }
         .onAppear {
+            // Debug logging
+            print("[MapPreview] Total sessions: \(historicalSessions.count)")
+            print("[MapPreview] Sessions with locations: \(sessionsWithLocations.count)")
+            for (i, session) in sessionsWithLocations.prefix(3).enumerated() {
+                print("[MapPreview] Session \(i): \(session.locations.count) locations, points=\(session.pointsCount)")
+                if let first = session.locations.first {
+                    print("[MapPreview]   First loc: \(first.latitude), \(first.longitude)")
+                }
+            }
+
+            // Center on current location, or most recent track location
             if let loc = location {
                 position = .camera(MapCamera(
                     centerCoordinate: loc.coordinate,
@@ -79,6 +128,16 @@ struct MapPreviewView: View {
                     heading: 0,
                     pitch: 0
                 ))
+            } else if let lastLoc = displayLocations.last {
+                print("[MapPreview] Centering on last location: \(lastLoc.latitude), \(lastLoc.longitude)")
+                position = .camera(MapCamera(
+                    centerCoordinate: lastLoc.coordinate,
+                    distance: 1000,
+                    heading: 0,
+                    pitch: 0
+                ))
+            } else {
+                print("[MapPreview] No locations to center on")
             }
         }
     }
@@ -241,7 +300,9 @@ struct FullMapView: View {
 #Preview("Map Preview") {
     MapPreviewView(
         location: CLLocation(latitude: 37.7749, longitude: -122.4194),
-        sessionLocations: []
+        sessionLocations: [],
+        historicalSessions: [],
+        position: .constant(.automatic)
     )
     .frame(height: 200)
 }

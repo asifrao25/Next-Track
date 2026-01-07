@@ -152,6 +152,20 @@ class LocationManager: NSObject, ObservableObject {
         lastSentTime = Date()
     }
 
+    // MARK: - Single Location Request
+
+    /// Request a single location update (for "center on me" button)
+    func requestSingleLocation() {
+        guard hasAnyPermission else {
+            lastError = "Location permission not granted"
+            return
+        }
+
+        // Request a single location update
+        locationManager.requestLocation()
+        print("[LocationManager] Requested single location update")
+    }
+
     // MARK: - Helper Methods
 
     func updateSettings(interval: TimeInterval, minimumAccuracy: Double) {

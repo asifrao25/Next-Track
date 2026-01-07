@@ -66,6 +66,13 @@ struct PulsingStatusIndicator: View {
 
 // MARK: - Custom Title Header View
 
+enum ConnectionStatusType {
+    case connected
+    case disconnected
+    case error
+    case unknown
+}
+
 struct CustomTitleHeaderView: View {
     @ObservedObject var connectionMonitor: ConnectionMonitor
     @ObservedObject var batteryMonitor: BatteryMonitor
@@ -73,6 +80,8 @@ struct CustomTitleHeaderView: View {
     let hasIssues: Bool
     let pendingCount: Int
     let currentZoneName: String?  // Zone name when inside a geofence
+    var connectionStatus: ConnectionStatusType = .unknown
+    var lastSuccessfulSend: Date? = nil
 
     var body: some View {
         VStack(spacing: 12) {
@@ -89,48 +98,63 @@ struct CustomTitleHeaderView: View {
                 }
 
                 // Status row
-                HStack(spacing: 16) {
+                HStack(spacing: 8) {
                     // Tracking status - dynamic based on zone
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: trackingStatusIcon)
-                            .font(.system(size: 11))
+                            .font(.system(size: 10))
                         Text(trackingStatusText)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundColor(trackingStatusColor)
 
                     // Divider
                     Text("|")
                         .foregroundColor(.secondary.opacity(0.5))
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
 
-                    // Ping/Latency
-                    HStack(spacing: 4) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .font(.system(size: 11))
+                    // Connection + Latency combined
+                    HStack(spacing: 3) {
+                        Image(systemName: connectionIcon)
+                            .font(.system(size: 10))
                         if let latency = connectionMonitor.averageLatency {
                             Text("\(Int(latency))ms")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
                         } else {
-                            Text("--ms")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            Text("--")
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
                         }
                     }
-                    .foregroundColor(latencyColor)
+                    .foregroundColor(connectionColor)
 
                     // Divider
                     Text("|")
                         .foregroundColor(.secondary.opacity(0.5))
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
 
                     // Battery
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: batteryIcon)
-                            .font(.system(size: 11))
+                            .font(.system(size: 10))
                         Text("\(batteryMonitor.batteryLevel)%")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundColor(batteryColor)
+                }
+
+                // Last sent row
+                if let lastSent = lastSuccessfulSend {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 10))
+                        Text("Last sent:")
+                            .font(.system(size: 11))
+                        Text(lastSent, style: .relative)
+                            .font(.system(size: 11, weight: .medium))
+                        Text("ago")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.secondary)
                 }
 
                 // Pending locations indicator (if any)
@@ -207,6 +231,32 @@ struct CustomTitleHeaderView: View {
             return .yellow
         default:
             return .orange
+        }
+    }
+
+    private var connectionIcon: String {
+        switch connectionStatus {
+        case .connected:
+            return "checkmark.circle.fill"
+        case .disconnected:
+            return "wifi.slash"
+        case .error:
+            return "exclamationmark.triangle.fill"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
+
+    private var connectionColor: Color {
+        switch connectionStatus {
+        case .connected:
+            return .green
+        case .disconnected:
+            return .orange
+        case .error:
+            return .red
+        case .unknown:
+            return .secondary
         }
     }
 

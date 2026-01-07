@@ -139,6 +139,74 @@ struct StoredLocation: Codable {
     }
 }
 
+// MARK: - Daily Stats
+
+struct DailyStats: Identifiable {
+    let id: Date  // Start of day (used as unique identifier)
+    let date: Date
+    let sessions: [TrackingSession]
+
+    var sessionCount: Int {
+        sessions.count
+    }
+
+    var totalDistance: Double {
+        sessions.reduce(0) { $0 + $1.totalDistance }
+    }
+
+    var totalDuration: TimeInterval {
+        sessions.reduce(0) { $0 + $1.duration }
+    }
+
+    var totalPoints: Int {
+        sessions.reduce(0) { $0 + $1.pointsCount }
+    }
+
+    var formattedDistance: String {
+        if totalDistance >= 1000 {
+            return String(format: "%.2f km", totalDistance / 1000)
+        }
+        return String(format: "%.0f m", totalDistance)
+    }
+
+    var formattedDuration: String {
+        let hours = Int(totalDuration) / 3600
+        let minutes = (Int(totalDuration) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+
+    var averageSpeed: Double? {
+        guard totalDuration > 0 else { return nil }
+        return totalDistance / totalDuration
+    }
+
+    var formattedAverageSpeed: String {
+        guard let speed = averageSpeed else { return "--" }
+        let kmh = speed * 3.6
+        return String(format: "%.1f km/h", kmh)
+    }
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        return formatter.string(from: date)
+    }
+
+    var shortFormattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter.string(from: date)
+    }
+
+    /// All locations from all sessions for the day
+    var allLocations: [StoredLocation] {
+        sessions.flatMap { $0.locations }
+    }
+}
+
 // MARK: - History Manager
 
 class TrackingHistoryManager: ObservableObject {
@@ -146,19 +214,134 @@ class TrackingHistoryManager: ObservableObject {
 
     @Published var sessions: [TrackingSession] = []
     @Published var currentSession: TrackingSession?
+    @Published var hasRecoverySession: Bool = false
+    @Published var recoverySession: TrackingSession?
 
     private let storageKey = "trackingSessions"
+    private let autoSaveKey = "currentSessionAutoSave"
     private let maxStoredSessions = 10000  // Keep all sessions (effectively unlimited)
+    private var autoSaveTimer: Timer?
+    private var locationsSinceLastSave = 0
 
     private init() {
         loadSessions()
+        checkForRecoverySession()
+    }
+
+    // MARK: - Auto-Save & Recovery
+
+    /// Start auto-save timer (call when tracking starts)
+    func startAutoSave() {
+        stopAutoSave()
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.saveCurrentSessionToDisk()
+        }
+        print("[TrackingHistory] Auto-save started (60 second interval)")
+    }
+
+    /// Stop auto-save timer (call when tracking stops)
+    func stopAutoSave() {
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+        locationsSinceLastSave = 0
+    }
+
+    /// Save current session to disk (called periodically and on app background)
+    func saveCurrentSessionToDisk() {
+        guard let session = currentSession else {
+            UserDefaults.standard.removeObject(forKey: autoSaveKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(session) {
+            UserDefaults.standard.set(data, forKey: autoSaveKey)
+            print("[TrackingHistory] Auto-saved session: \(session.pointsCount) points")
+        }
+    }
+
+    /// Load a previously interrupted session
+    func loadRecoverySession() -> TrackingSession? {
+        guard let data = UserDefaults.standard.data(forKey: autoSaveKey) else { return nil }
+        return try? JSONDecoder().decode(TrackingSession.self, from: data)
+    }
+
+    /// Clear the recovery session from disk
+    func clearRecoverySession() {
+        UserDefaults.standard.removeObject(forKey: autoSaveKey)
+        hasRecoverySession = false
+        recoverySession = nil
+        print("[TrackingHistory] Recovery session cleared")
+    }
+
+    /// Check for interrupted session on app launch
+    private func checkForRecoverySession() {
+        if let session = loadRecoverySession() {
+            // Only show recovery if it has points and is not currently being tracked
+            if session.pointsCount > 0 && currentSession == nil {
+                recoverySession = session
+                hasRecoverySession = true
+                print("[TrackingHistory] Found interrupted session: \(session.pointsCount) points from \(session.startTime)")
+            } else {
+                clearRecoverySession()
+            }
+        }
+    }
+
+    /// Save the recovered session as a completed session
+    func saveRecoveredSession() {
+        guard var session = recoverySession else { return }
+        session.endTime = session.locations.last?.timestamp ?? Date()
+        sessions.insert(session, at: 0)
+        saveSessions()
+        clearRecoverySession()
+        print("[TrackingHistory] Recovered session saved: \(session.pointsCount) points")
+    }
+
+    /// Discard the recovered session
+    func discardRecoveredSession() {
+        clearRecoverySession()
+        print("[TrackingHistory] Recovered session discarded")
+    }
+
+    // MARK: - Tracking State (for restart detection)
+
+    private let wasTrackingKey = "wasTrackingBeforeTermination"
+    private let lastTrackingTimestampKey = "lastTrackingTimestamp"
+
+    /// Save tracking state for restart detection
+    func setTrackingState(_ isTracking: Bool) {
+        UserDefaults.standard.set(isTracking, forKey: wasTrackingKey)
+        if isTracking {
+            UserDefaults.standard.set(Date(), forKey: lastTrackingTimestampKey)
+        }
+        print("[TrackingHistory] Tracking state saved: \(isTracking)")
+    }
+
+    /// Check if tracking was active before app termination
+    func wasTrackingBeforeTermination() -> Bool {
+        return UserDefaults.standard.bool(forKey: wasTrackingKey)
+    }
+
+    /// Get timestamp of last tracking activity
+    func getLastTrackingTimestamp() -> Date? {
+        return UserDefaults.standard.object(forKey: lastTrackingTimestampKey) as? Date
+    }
+
+    /// Clear the wasTracking state (after showing alert)
+    func clearWasTrackingState() {
+        UserDefaults.standard.set(false, forKey: wasTrackingKey)
+        print("[TrackingHistory] Cleared wasTracking state")
     }
 
     // MARK: - Session Management
 
     func startNewSession() {
+        // Clear any existing recovery session when starting fresh
+        clearRecoverySession()
+
         let session = TrackingSession.new()
         currentSession = session
+        startAutoSave()  // Start periodic auto-save
+        saveCurrentSessionToDisk()  // Immediate save
         print("[TrackingHistory] Started new session: \(session.id)")
     }
 
@@ -167,6 +350,8 @@ class TrackingHistoryManager: ObservableObject {
         session.endTime = Date()
         sessions.insert(session, at: 0)
         currentSession = nil
+        stopAutoSave()  // Stop auto-save timer
+        clearRecoverySession()  // Remove auto-save data since session is complete
         trimOldSessions()
         saveSessions()
         print("[TrackingHistory] Ended session: \(session.id) - \(session.pointsCount) points, \(session.formattedDistance)")
@@ -186,6 +371,13 @@ class TrackingHistoryManager: ObservableObject {
         session.locations.append(storedLocation)
         session.pointsCount += 1
         currentSession = session
+
+        // Save every 10 locations for extra protection
+        locationsSinceLastSave += 1
+        if locationsSinceLastSave >= 10 {
+            saveCurrentSessionToDisk()
+            locationsSinceLastSave = 0
+        }
     }
 
     func deleteSession(_ session: TrackingSession) {
@@ -240,6 +432,77 @@ class TrackingHistoryManager: ObservableObject {
 
     var thisWeeksDistance: Double {
         thisWeeksSessions.reduce(0) { $0 + $1.totalDistance }
+    }
+
+    // MARK: - Daily Stats
+
+    /// Get sessions grouped by day, sorted by date (most recent first)
+    var dailyStats: [DailyStats] {
+        let calendar = Calendar.current
+
+        // Group sessions by day
+        let grouped = Dictionary(grouping: sessions) { session in
+            calendar.startOfDay(for: session.startTime)
+        }
+
+        // Convert to DailyStats array, sorted by date descending
+        return grouped.map { date, sessions in
+            DailyStats(
+                id: date,
+                date: date,
+                sessions: sessions.sorted { $0.startTime > $1.startTime }
+            )
+        }
+        .sorted { $0.date > $1.date }
+    }
+
+    /// Export all sessions for a specific day to GPX
+    func exportDayToGPX(_ dailyStats: DailyStats) -> String {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dayFormatter.string(from: dailyStats.date)
+
+        var gpx = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="Next Track iOS App"
+             xmlns="http://www.topografix.com/GPX/1/1"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+          <metadata>
+            <name>Next Track - \(dateString)</name>
+            <desc>\(dailyStats.sessionCount) tracking session(s)</desc>
+            <time>\(dateFormatter.string(from: Date()))</time>
+          </metadata>
+
+        """
+
+        for session in dailyStats.sessions {
+            gpx += "  <trk>\n"
+            gpx += "    <name>\(session.name)</name>\n"
+            gpx += "    <trkseg>\n"
+
+            for location in session.locations {
+                gpx += "      <trkpt lat=\"\(location.latitude)\" lon=\"\(location.longitude)\">\n"
+                if let altitude = location.altitude {
+                    gpx += "        <ele>\(altitude)</ele>\n"
+                }
+                gpx += "        <time>\(dateFormatter.string(from: location.timestamp))</time>\n"
+                if let speed = location.speed {
+                    gpx += "        <speed>\(speed)</speed>\n"
+                }
+                gpx += "      </trkpt>\n"
+            }
+
+            gpx += "    </trkseg>\n"
+            gpx += "  </trk>\n"
+        }
+
+        gpx += "</gpx>"
+
+        return gpx
     }
 
     // MARK: - Persistence

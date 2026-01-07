@@ -7,6 +7,8 @@
 
 import SwiftUI
 import CoreLocation
+import UserNotifications
+import MapKit
 
 struct MainView: View {
     @EnvironmentObject var locationManager: LocationManager
@@ -22,6 +24,10 @@ struct MainView: View {
     @State private var isTracking = false
     @State private var showFullMap = false
     @State private var showStopConfirmation = false
+    @State private var showRecoveryAlert = false
+    @State private var showInterruptedTrackingAlert = false
+    @State private var mapPosition: MapCameraPosition = .automatic
+    @State private var pendingCenterOnLocation = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -49,10 +55,55 @@ struct MainView: View {
         .onChange(of: selectedTab) { _, _ in
             HapticManager.shared.selectionChanged()
         }
+        .onChange(of: locationManager.currentLocation) { _, newLocation in
+            // Center on location once it arrives if requested
+            if pendingCenterOnLocation, let loc = newLocation {
+                pendingCenterOnLocation = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    mapPosition = .camera(MapCamera(
+                        centerCoordinate: loc.coordinate,
+                        distance: 800,
+                        heading: 0,
+                        pitch: 0
+                    ))
+                }
+                HapticManager.shared.success()
+            }
+        }
         .onAppear {
             setupLocationCallback()
             setupGeofenceCallbacks()
             connectionMonitor.requestNotificationPermission { _ in }
+            // Check for interrupted session recovery
+            checkForSessionRecovery()
+            // Auto-start tracking on launch (unless in geofenced stop zone)
+            autoStartTrackingIfNeeded()
+            // Check for interrupted tracking (restart detection)
+            checkForInterruptedTracking()
+        }
+        .alert("Session Recovery", isPresented: $showRecoveryAlert) {
+            Button("Save Session") {
+                historyManager.saveRecoveredSession()
+                HapticManager.shared.success()
+            }
+            Button("Discard", role: .destructive) {
+                historyManager.discardRecoveredSession()
+            }
+        } message: {
+            if let session = historyManager.recoverySession {
+                Text("A previous tracking session was interrupted.\n\n\(session.pointsCount) location points recorded\n\(session.formattedDistance) traveled\n\nWould you like to save this data?")
+            } else {
+                Text("A previous tracking session was interrupted. Would you like to save the recorded data?")
+            }
+        }
+        .alert("Tracking Interrupted", isPresented: $showInterruptedTrackingAlert) {
+            Button("Resume Tracking") {
+                startTracking()
+                HapticManager.shared.trackingStarted()
+            }
+            Button("Dismiss", role: .cancel) { }
+        } message: {
+            Text("Your tracking was interrupted (phone restart or app terminated). Would you like to resume?")
         }
     }
 
@@ -60,34 +111,35 @@ struct MainView: View {
 
     private var homeTab: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Custom App Title Header
-                    CustomTitleHeaderView(
-                        connectionMonitor: connectionMonitor,
-                        batteryMonitor: batteryMonitor,
-                        isTracking: isTracking,
-                        hasIssues: hasIssues,
-                        pendingCount: PendingLocationQueue.shared.count,
-                        currentZoneName: geofenceManager.currentZone?.name
-                    )
+            GeometryReader { geometry in
+                ZStack {
+                    // Full-screen map background
+                    mapFullScreen
+                        .ignoresSafeArea(edges: .bottom)
 
-                    // Map Preview
-                    mapPreview
+                    // Overlay content
+                    VStack(spacing: 0) {
+                        // Header at top
+                        CustomTitleHeaderView(
+                            connectionMonitor: connectionMonitor,
+                            batteryMonitor: batteryMonitor,
+                            isTracking: isTracking,
+                            hasIssues: hasIssues,
+                            pendingCount: PendingLocationQueue.shared.count,
+                            currentZoneName: geofenceManager.currentZone?.name,
+                            connectionStatus: mapConnectionStatus,
+                            lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend
+                        )
+                        .padding(.horizontal)
+                        .padding(.top, 8)
 
-                    // Tracking Toggle
-                    trackingToggle
+                        Spacer()
 
-                    // Quick Stats
-                    quickStats
-
-                    // Connection Status
-                    connectionStatus
-
-                    // Last Update Info
-                    lastUpdateInfo
+                        // Bottom controls (button + stats)
+                        trackingOverlay
+                            .padding(.bottom, 16)
+                    }
                 }
-                .padding()
             }
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(isPresented: $showFullMap) {
@@ -103,6 +155,20 @@ struct MainView: View {
             } message: {
                 Text("Are you sure you want to stop tracking your location?")
             }
+        }
+    }
+
+    // Helper to map PhoneTrackAPI connection status to our enum
+    private var mapConnectionStatus: ConnectionStatusType {
+        switch phoneTrackAPI.connectionStatus {
+        case .connected:
+            return .connected
+        case .disconnected:
+            return .disconnected
+        case .error:
+            return .error
+        case .unknown:
+            return .unknown
         }
     }
 
@@ -300,7 +366,9 @@ struct MainView: View {
         } label: {
             MapPreviewView(
                 location: locationManager.currentLocation,
-                sessionLocations: historyManager.currentSession?.locations ?? []
+                sessionLocations: historyManager.currentSession?.locations ?? [],
+                historicalSessions: historyManager.sessions,
+                position: $mapPosition
             )
             .frame(height: 200)
             .cornerRadius(12)
@@ -369,6 +437,125 @@ struct MainView: View {
                 icon: "scope"
             )
         }
+    }
+
+    // MARK: - Round Tracking Button (70pt)
+
+    private var roundTrackingButton: some View {
+        Button {
+            HapticManager.shared.importantButtonTap()
+            if isTracking {
+                showStopConfirmation = true
+            } else {
+                startTracking()
+            }
+        } label: {
+            Circle()
+                .fill(isTracking ? Color.red : Color.green)
+                .frame(width: 70, height: 70)
+                .overlay(
+                    Image(systemName: isTracking ? "stop.fill" : "play.fill")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                )
+        }
+        .disabled(!settingsManager.isConfigured)
+        .opacity(settingsManager.isConfigured ? 1.0 : 0.5)
+    }
+
+    // MARK: - Tracking Overlay (Button + Stats)
+
+    private var trackingOverlay: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .center, spacing: 6) {
+                // Left stat: Distance (orange)
+                OverlayStatView(
+                    value: formatDistance(historyManager.todaysDistance),
+                    label: "Distance",
+                    icon: "figure.walk",
+                    color: .orange
+                )
+
+                // Center on location button
+                Button {
+                    centerOnLocation()
+                } label: {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.blue))
+                }
+
+                // Center: Round Start/Stop Button
+                roundTrackingButton
+
+                // Expand to full screen button
+                Button {
+                    showFullMap = true
+                    HapticManager.shared.buttonTap()
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.purple))
+                }
+
+                // Right stat: Points Today (blue)
+                OverlayStatView(
+                    value: "\(historyManager.todaysPoints)",
+                    label: "Points",
+                    icon: "mappin.and.ellipse",
+                    color: .blue
+                )
+            }
+            .padding(.horizontal, 12)
+
+            // Not configured warning
+            if !settingsManager.isConfigured {
+                Text("Configure server to start tracking")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
+    // MARK: - Center on Location
+
+    private func centerOnLocation() {
+        HapticManager.shared.buttonTap()
+
+        if let loc = locationManager.currentLocation {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                mapPosition = .camera(MapCamera(
+                    centerCoordinate: loc.coordinate,
+                    distance: 800,
+                    heading: 0,
+                    pitch: 0
+                ))
+            }
+        } else {
+            // Request location if not available
+            locationManager.requestSingleLocation()
+            // Set flag to center once location arrives
+            pendingCenterOnLocation = true
+        }
+    }
+
+    // MARK: - Full Screen Map
+
+    private var mapFullScreen: some View {
+        MapPreviewView(
+            location: locationManager.currentLocation,
+            sessionLocations: historyManager.currentSession?.locations ?? [],
+            historicalSessions: historyManager.sessions,
+            position: $mapPosition
+        )
     }
 
     // MARK: - Connection Status
@@ -456,6 +643,9 @@ struct MainView: View {
         historyManager.startNewSession()
         isTracking = true
 
+        // Save tracking state for restart detection
+        historyManager.setTrackingState(true)
+
         HapticManager.shared.trackingStarted()
     }
 
@@ -464,6 +654,9 @@ struct MainView: View {
         locationManager.stopSignificantLocationMonitoring()
         historyManager.endCurrentSession()
         isTracking = false
+
+        // Clear tracking state (user intentionally stopped)
+        historyManager.setTrackingState(false)
 
         HapticManager.shared.trackingStopped()
     }
@@ -529,6 +722,104 @@ struct MainView: View {
         }
     }
 
+    private func checkForSessionRecovery() {
+        // Small delay to let the UI settle before showing alert
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if historyManager.hasRecoverySession {
+                showRecoveryAlert = true
+            }
+        }
+    }
+
+    private func autoStartTrackingIfNeeded() {
+        // Delay to let geofence manager check current zone state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // Don't auto-start if:
+            // 1. Already tracking
+            // 2. Server not configured
+            // 3. Inside a geofence zone that should stop tracking
+            guard !isTracking else {
+                print("[AutoStart] Already tracking - skipping auto-start")
+                return
+            }
+
+            guard settingsManager.isConfigured else {
+                print("[AutoStart] Server not configured - skipping auto-start")
+                return
+            }
+
+            // Check if inside a "stop tracking" geofence
+            if let currentZone = geofenceManager.currentZone {
+                switch currentZone.action {
+                case .homeMode, .stopOnEnter:
+                    print("[AutoStart] Inside '\(currentZone.name)' (stop zone) - skipping auto-start")
+                    return
+                default:
+                    break
+                }
+            }
+
+            // Auto-start tracking
+            print("[AutoStart] Auto-starting tracking on app launch")
+            startTracking()
+
+            // Send notification
+            sendAutoStartNotification()
+        }
+    }
+
+    private func sendAutoStartNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "📍 Tracking Started"
+        content.body = "Next Track has automatically started location tracking."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "auto-start-tracking",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("[AutoStart] Failed to send notification: \(error)")
+            }
+        }
+    }
+
+    private func checkForInterruptedTracking() {
+        // Delay to run after auto-start check (1.5 sec vs 1.0 sec)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            // Skip if already tracking (auto-start handled it)
+            guard !isTracking else {
+                print("[RestartDetection] Already tracking - skipping interrupted check")
+                return
+            }
+
+            // Check if was tracking before termination
+            guard historyManager.wasTrackingBeforeTermination() else {
+                print("[RestartDetection] Was not tracking before termination")
+                return
+            }
+
+            // Check if it's been a while (indicating restart/crash, not normal app switch)
+            if let lastTimestamp = historyManager.getLastTrackingTimestamp() {
+                let timeSinceLastTracking = Date().timeIntervalSince(lastTimestamp)
+
+                // If more than 5 minutes since last tracking activity
+                if timeSinceLastTracking > 300 {
+                    print("[RestartDetection] Tracking was interrupted \(Int(timeSinceLastTracking/60)) min ago - showing alert")
+                    showInterruptedTrackingAlert = true
+                } else {
+                    print("[RestartDetection] Recent tracking activity (\(Int(timeSinceLastTracking))s ago) - not showing alert")
+                }
+            }
+
+            // Clear the state so we don't show again
+            historyManager.clearWasTrackingState()
+        }
+    }
+
     // MARK: - Formatters
 
     private func formatDistance(_ meters: Double) -> String {
@@ -569,6 +860,38 @@ struct StatCard: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Overlay Stat View (for map overlay)
+
+struct OverlayStatView: View {
+    let value: String
+    let label: String
+    let icon: String
+    var color: Color = .blue
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.9))
+
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+        }
+        .frame(width: 68, height: 62)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(color.opacity(0.9))
+        )
     }
 }
 

@@ -7,18 +7,25 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import MapKit
+
+// Wrapper to make URL identifiable for sheet presentation
+struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
 
 struct StatsHistoryView: View {
     @StateObject private var historyManager = TrackingHistoryManager.shared
     @StateObject private var autoExportManager = AutoExportManager.shared
     @State private var selectedTimeRange: TimeRange = .today
     @State private var showClearConfirmation = false
-    @State private var showExportSheet = false
-    @State private var exportURL: URL?
+    @State private var exportItem: IdentifiableURL?  // Changed to use identifiable wrapper
     @State private var showImportPicker = false
     @State private var importError: String?
     @State private var showImportError = false
     @State private var showFolderPicker = false
+    @State private var showSessionsList = false  // Collapsed by default
 
     enum TimeRange: String, CaseIterable {
         case today = "Today"
@@ -51,8 +58,11 @@ struct StatsHistoryView: View {
                     // Auto Export Settings
                     autoExportCard
 
-                    // Session History
-                    sessionHistorySection
+                    // Daily Stats (collapsed by day)
+                    dailyStatsSection
+
+                    // Sessions (collapsed by default)
+                    sessionsSection
                 }
                 .padding(.vertical)
             }
@@ -108,10 +118,8 @@ struct StatsHistoryView: View {
             } message: {
                 Text(importError ?? "Failed to import data")
             }
-            .sheet(isPresented: $showExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(activityItems: [url])
-                }
+            .sheet(item: $exportItem) { item in
+                ShareSheet(activityItems: [item.url])
             }
             .fileImporter(
                 isPresented: $showImportPicker,
@@ -225,8 +233,7 @@ struct StatsHistoryView: View {
         let filename = "NextTrack-Export-\(dateFormatter.string(from: Date())).gpx"
 
         if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
-            exportURL = url
-            showExportSheet = true
+            exportItem = IdentifiableURL(url: url)
         }
     }
 
@@ -237,8 +244,7 @@ struct StatsHistoryView: View {
         let filename = "NextTrack-Backup-\(dateFormatter.string(from: Date())).json"
 
         if let url = historyManager.saveJSONFile(data: jsonData, filename: filename) {
-            exportURL = url
-            showExportSheet = true
+            exportItem = IdentifiableURL(url: url)
         }
     }
 
@@ -396,34 +402,99 @@ struct StatsHistoryView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Session History
+    // MARK: - Daily Stats Section
 
-    private var sessionHistorySection: some View {
+    private var dailyStatsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Recent Sessions")
+                Image(systemName: "calendar")
+                    .foregroundColor(.blue)
+                Text("Daily Stats")
                     .font(.headline)
                 Spacer()
-                Text("\(sessionsToShow.count) sessions")
+                Text("\(historyManager.dailyStats.count) days")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal)
 
-            if historyManager.sessions.isEmpty {
+            if historyManager.dailyStats.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "clock.badge.questionmark")
+                    Image(systemName: "calendar.badge.clock")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
                     Text("No tracking history yet")
                         .foregroundColor(.secondary)
-                    Text("Start tracking to see your sessions here")
+                    Text("Start tracking to see daily summaries here")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(dailyStatsToShow) { daily in
+                        DailyStatsRowView(
+                            dailyStats: daily,
+                            onOpenInMaps: { openDayInMaps(daily) },
+                            onShareGPX: { shareDayGPX(daily) },
+                            onDeleteSession: { session in
+                                historyManager.deleteSession(session)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private var dailyStatsToShow: [DailyStats] {
+        switch selectedTimeRange {
+        case .today:
+            return historyManager.dailyStats.filter {
+                Calendar.current.isDateInToday($0.date)
+            }
+        case .week:
+            let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+            return historyManager.dailyStats.filter { $0.date >= weekAgo }
+        case .allTime:
+            return Array(historyManager.dailyStats.prefix(30))
+        }
+    }
+
+    // MARK: - Sessions Section (Collapsible)
+
+    private var sessionsSection: some View {
+        VStack(spacing: 0) {
+            // Collapsible header
+            HStack {
+                Image(systemName: "list.bullet.rectangle")
+                    .foregroundColor(.orange)
+                Text("Sessions")
+                    .font(.headline)
+                Text("(\(historyManager.sessions.count))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(showSessionsList ? 90 : 0))
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSessionsList.toggle()
+                }
+            }
+            .padding(.horizontal)
+
+            // Expanded sessions list
+            if showSessionsList && !historyManager.sessions.isEmpty {
                 LazyVStack(spacing: 8) {
                     ForEach(sessionsToShow) { session in
                         SessionRowView(
@@ -438,6 +509,7 @@ struct StatsHistoryView: View {
                     }
                 }
                 .padding(.horizontal)
+                .padding(.top, 8)
             }
         }
     }
@@ -451,8 +523,70 @@ struct StatsHistoryView: View {
         let filename = "NextTrack-\(dateFormatter.string(from: session.startTime)).gpx"
 
         if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
-            exportURL = url
-            showExportSheet = true
+            exportItem = IdentifiableURL(url: url)
+        }
+    }
+
+    // MARK: - Export Daily Stats
+
+    private func exportDayToGPX(_ dailyStats: DailyStats) {
+        let gpxContent = historyManager.exportDayToGPX(dailyStats)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "NextTrack-\(dateFormatter.string(from: dailyStats.date)).gpx"
+
+        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
+            exportItem = IdentifiableURL(url: url)
+        }
+    }
+
+    private func openDayInMaps(_ dailyStats: DailyStats) {
+        let locations = dailyStats.allLocations
+        print("[Maps] Opening day in maps - \(locations.count) locations")
+
+        guard !locations.isEmpty else {
+            print("[Maps] No locations to show")
+            return
+        }
+
+        // Create map items from the track points
+        var mapItems: [MKMapItem] = []
+
+        // Add start point
+        if let first = locations.first {
+            let startCoord = CLLocationCoordinate2D(latitude: first.latitude, longitude: first.longitude)
+            let startPlacemark = MKPlacemark(coordinate: startCoord)
+            let startItem = MKMapItem(placemark: startPlacemark)
+            startItem.name = "Start"
+            mapItems.append(startItem)
+            print("[Maps] Start: \(first.latitude), \(first.longitude)")
+        }
+
+        // Add end point if different from start
+        if let last = locations.last, locations.count > 1 {
+            let endCoord = CLLocationCoordinate2D(latitude: last.latitude, longitude: last.longitude)
+            let endPlacemark = MKPlacemark(coordinate: endCoord)
+            let endItem = MKMapItem(placemark: endPlacemark)
+            endItem.name = "End"
+            mapItems.append(endItem)
+            print("[Maps] End: \(last.latitude), \(last.longitude)")
+        }
+
+        // Open Apple Maps directly
+        print("[Maps] Opening Apple Maps with \(mapItems.count) items")
+        MKMapItem.openMaps(with: mapItems, launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
+        ])
+    }
+
+    private func shareDayGPX(_ dailyStats: DailyStats) {
+        let gpxContent = historyManager.exportDayToGPX(dailyStats)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "NextTrack-\(dateFormatter.string(from: dailyStats.date)).gpx"
+
+        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
+            exportItem = IdentifiableURL(url: url)
         }
     }
 
@@ -772,6 +906,221 @@ struct SessionStatItem: View {
         .padding(.vertical, 8)
         .background(color.opacity(0.1))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Daily Stats Row View
+
+struct DailyStatsRowView: View {
+    let dailyStats: DailyStats
+    let onOpenInMaps: () -> Void
+    let onShareGPX: () -> Void
+    let onDeleteSession: (TrackingSession) -> Void
+
+    @State private var isExpanded = false
+    @State private var sessionToDelete: TrackingSession?
+    @State private var showDeleteConfirmation = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header - always visible
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(dailyStats.shortFormattedDate)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    HStack(spacing: 12) {
+                        Label("\(dailyStats.sessionCount) sessions", systemImage: "clock")
+                        Label(dailyStats.formattedDistance, systemImage: "figure.walk")
+                        Label(dailyStats.formattedDuration, systemImage: "timer")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .padding()
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
+
+            // Expanded details
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal)
+
+                VStack(spacing: 16) {
+                    // Stats grid
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 12) {
+                        SessionStatItem(
+                            title: "Sessions",
+                            value: "\(dailyStats.sessionCount)",
+                            icon: "clock.fill",
+                            color: .blue
+                        )
+
+                        SessionStatItem(
+                            title: "Distance",
+                            value: dailyStats.formattedDistance,
+                            icon: "figure.walk",
+                            color: .green
+                        )
+
+                        SessionStatItem(
+                            title: "Duration",
+                            value: dailyStats.formattedDuration,
+                            icon: "timer",
+                            color: .orange
+                        )
+
+                        SessionStatItem(
+                            title: "Points",
+                            value: "\(dailyStats.totalPoints)",
+                            icon: "mappin.circle.fill",
+                            color: .purple
+                        )
+
+                        SessionStatItem(
+                            title: "Avg Speed",
+                            value: dailyStats.formattedAverageSpeed,
+                            icon: "speedometer",
+                            color: .teal
+                        )
+
+                        SessionStatItem(
+                            title: "Full Date",
+                            value: "",
+                            icon: "calendar",
+                            color: .gray
+                        )
+                    }
+
+                    // Full date
+                    Text(dailyStats.formattedDate)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    // Individual sessions list
+                    if !dailyStats.sessions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sessions")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+
+                            ForEach(dailyStats.sessions) { session in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack {
+                                            Text(session.startTime, style: .time)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+
+                                            if session.isActive {
+                                                Text("LIVE")
+                                                    .font(.caption2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(.white)
+                                                    .padding(.horizontal, 4)
+                                                    .padding(.vertical, 1)
+                                                    .background(Color.green)
+                                                    .cornerRadius(3)
+                                            }
+                                        }
+
+                                        HStack(spacing: 8) {
+                                            Text(session.formattedDuration)
+                                            Text("•")
+                                            Text(session.formattedDistance)
+                                            Text("•")
+                                            Text("\(session.pointsCount) pts")
+                                        }
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    // Delete button
+                                    Button {
+                                        sessionToDelete = session
+                                        showDeleteConfirmation = true
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.subheadline)
+                                            .foregroundColor(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(session.isActive)
+                                    .opacity(session.isActive ? 0.3 : 1.0)
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color(.systemBackground))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+
+                    // Action buttons
+                    HStack(spacing: 12) {
+                        Button {
+                            onOpenInMaps()
+                        } label: {
+                            Label("Open in Maps", systemImage: "map")
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+
+                        Button {
+                            onShareGPX()
+                        } label: {
+                            Label("Share GPX", systemImage: "square.and.arrow.up")
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                    }
+                }
+                .padding()
+            }
+        }
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .alert("Delete Session?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                sessionToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let session = sessionToDelete {
+                    onDeleteSession(session)
+                }
+                sessionToDelete = nil
+            }
+        } message: {
+            if let session = sessionToDelete {
+                Text("Delete session from \(session.startTime, style: .time) with \(session.pointsCount) points?")
+            } else {
+                Text("This will permanently delete this session.")
+            }
+        }
     }
 }
 
