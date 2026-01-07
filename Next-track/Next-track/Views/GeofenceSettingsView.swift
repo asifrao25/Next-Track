@@ -14,6 +14,8 @@ struct GeofenceSettingsView: View {
 
     @State private var showAddZone = false
     @State private var selectedZone: GeofenceZone?
+    @State private var showHomeRadiusPicker = false
+    @State private var homeZoneRadius: Double = 100
 
     var body: some View {
         List {
@@ -33,7 +35,7 @@ struct GeofenceSettingsView: View {
             // Quick Add Section
             Section {
                 Button {
-                    addHomeZone(action: .homeMode)
+                    showHomeRadiusPicker = true
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Label("Add Home Zone", systemImage: "house.fill")
@@ -123,11 +125,24 @@ struct GeofenceSettingsView: View {
             EditZoneView(zone: zone)
                 .environmentObject(geofenceManager)
         }
+        .sheet(isPresented: $showHomeRadiusPicker) {
+            HomeZoneRadiusSheet(radius: $homeZoneRadius) {
+                addHomeZone(action: .homeMode, radius: homeZoneRadius)
+            }
+        }
     }
 
-    private func addHomeZone(action: GeofenceZone.GeofenceAction) {
+    private func addHomeZone(action: GeofenceZone.GeofenceAction, radius: Double) {
         guard let location = locationManager.currentLocation else { return }
-        let zone = GeofenceZone.createHome(coordinate: location.coordinate, action: action)
+        let zone = GeofenceZone(
+            id: UUID(),
+            name: "Home",
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            radius: radius,
+            action: action,
+            isEnabled: true
+        )
         geofenceManager.addZone(zone)
 
         // Auto-start monitoring if not already
@@ -433,6 +448,114 @@ struct EditZoneView: View {
         case .stopOnExit:
             return "Stop tracking when I leave"
         }
+    }
+}
+
+// MARK: - Home Zone Radius Sheet
+
+struct HomeZoneRadiusSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var radius: Double
+    let onAdd: () -> Void
+
+    private let presets: [Double] = [50, 100, 200, 500]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Image(systemName: "house.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.blue)
+
+                    Text("Add Home Zone")
+                        .font(.title2.bold())
+
+                    Text("Set the radius for your home zone. Tracking will stop when you enter and start when you leave.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.top)
+
+                // Radius display
+                VStack(spacing: 8) {
+                    Text("\(Int(radius))m")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundColor(.blue)
+
+                    Text("radius")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Slider
+                VStack(spacing: 4) {
+                    Slider(value: $radius, in: 50...500, step: 25)
+                        .padding(.horizontal)
+
+                    HStack {
+                        Text("50m")
+                        Spacer()
+                        Text("500m")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                }
+
+                // Preset buttons
+                VStack(spacing: 8) {
+                    Text("Quick Select")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 12) {
+                        ForEach(presets, id: \.self) { preset in
+                            Button {
+                                radius = preset
+                            } label: {
+                                Text("\(Int(preset))m")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(radius == preset ? .white : .blue)
+                                    .frame(width: 60, height: 36)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(radius == preset ? Color.blue : Color.blue.opacity(0.1))
+                                    )
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Add button
+                Button {
+                    onAdd()
+                    dismiss()
+                } label: {
+                    Text("Add Home Zone")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                .padding(.bottom)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
