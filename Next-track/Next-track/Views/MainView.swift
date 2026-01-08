@@ -19,9 +19,14 @@ struct MainView: View {
     @StateObject private var connectionMonitor = ConnectionMonitor.shared
     @StateObject private var historyManager = TrackingHistoryManager.shared
     @StateObject private var geofenceManager = GeofenceManager.shared
+    @StateObject private var trackingStateManager = TrackingStateManager.shared
+    @StateObject private var cityTracker = CityTracker.shared
+    @StateObject private var placeManager = PlaceDetectionManager.shared
+    @StateObject private var insightsManager = InsightsManager.shared
 
-    @State private var selectedTab = 0
+    @State private var selectedTab = AppTab.centerIndex  // Start on Track tab (index 3)
     @State private var isTracking = false
+    @State private var startupCompleted = false
     @State private var showFullMap = false
     @State private var showStopConfirmation = false
     @State private var showRecoveryAlert = false
@@ -30,28 +35,36 @@ struct MainView: View {
     @State private var pendingCenterOnLocation = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // MARK: - Home Tab
-            homeTab
-                .tabItem {
-                    Label("Track", systemImage: "location.fill")
+        ZStack(alignment: .bottom) {
+            // Tab content
+            Group {
+                switch selectedTab {
+                case AppTab.stats.rawValue:
+                    StatsHistoryView()
+                case AppTab.cities.rawValue:
+                    CitiesView()
+                case AppTab.places.rawValue:
+                    PlacesView()
+                case AppTab.track.rawValue:
+                    homeTab
+                case AppTab.insights.rawValue:
+                    InsightsView()
+                case AppTab.settings.rawValue:
+                    settingsTab
+                default:
+                    homeTab
                 }
-                .tag(0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // MARK: - Stats Tab
-            StatsHistoryView()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar.fill")
-                }
-                .tag(1)
-
-            // MARK: - Settings Tab
-            settingsTab
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
-                .tag(2)
+            // Custom scrollable tab bar
+            ScrollableTabBar(
+                selectedTab: $selectedTab,
+                tabs: AppTab.allTabs,
+                centerIndex: AppTab.centerIndex
+            )
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: selectedTab) { _, _ in
             HapticManager.shared.selectionChanged()
         }
@@ -74,12 +87,21 @@ struct MainView: View {
             setupLocationCallback()
             setupGeofenceCallbacks()
             connectionMonitor.requestNotificationPermission { _ in }
+            // Sync tracking state from components
+            trackingStateManager.syncStateFromComponents()
+            isTracking = trackingStateManager.isTracking
             // Check for interrupted session recovery
             checkForSessionRecovery()
-            // Auto-start tracking on launch (unless in geofenced stop zone)
-            autoStartTrackingIfNeeded()
-            // Check for interrupted tracking (restart detection)
-            checkForInterruptedTracking()
+            // Coordinated startup sequence (replaces separate delays)
+            performCoordinatedStartup()
+        }
+        .onChange(of: trackingStateManager.isTracking) { _, newValue in
+            // Keep local state in sync with TrackingStateManager
+            isTracking = newValue
+        }
+        .onDisappear {
+            // Clear callbacks to prevent retain cycles
+            clearGeofenceCallbacks()
         }
         .alert("Session Recovery", isPresented: $showRecoveryAlert) {
             Button("Save Session") {
@@ -137,7 +159,7 @@ struct MainView: View {
 
                         // Bottom controls (button + stats)
                         trackingOverlay
-                            .padding(.bottom, 16)
+                            .padding(.bottom, 80)  // Account for custom tab bar height
                     }
                 }
             }
@@ -627,38 +649,26 @@ struct MainView: View {
     // MARK: - Actions
 
     private func startTracking() {
-        let settings = settingsManager.trackingSettings
+        // Use TrackingStateManager for manual tracking start
+        let success = trackingStateManager.startTracking(source: .manual)
 
-        if settings.significantLocationEnabled {
-            locationManager.startSignificantLocationMonitoring()
-        } else {
-            let interval = calculateEffectiveInterval()
-            locationManager.startTracking(
-                interval: interval,
-                minimumAccuracy: settings.minimumAccuracyMeters
-            )
+        if success {
+            // Update session tracking state
+            settingsManager.startSession()
+            historyManager.setTrackingState(true)
+            HapticManager.shared.trackingStarted()
         }
-
-        settingsManager.startSession()
-        historyManager.startNewSession()
-        isTracking = true
-
-        // Save tracking state for restart detection
-        historyManager.setTrackingState(true)
-
-        HapticManager.shared.trackingStarted()
     }
 
     private func stopTracking() {
-        locationManager.stopTracking()
-        locationManager.stopSignificantLocationMonitoring()
-        historyManager.endCurrentSession()
-        isTracking = false
+        // Use TrackingStateManager for manual tracking stop
+        let success = trackingStateManager.stopTracking(source: .manual)
 
-        // Clear tracking state (user intentionally stopped)
-        historyManager.setTrackingState(false)
-
-        HapticManager.shared.trackingStopped()
+        if success {
+            // Clear tracking state (user intentionally stopped)
+            historyManager.setTrackingState(false)
+            HapticManager.shared.trackingStopped()
+        }
     }
 
     private func calculateEffectiveInterval() -> TimeInterval {
@@ -681,10 +691,18 @@ struct MainView: View {
         let connMon = connectionMonitor
         let battMon = batteryMonitor
         let locMgr = locationManager
+        let cityTrk = CityTracker.shared
+        let placeMgr = PlaceDetectionManager.shared
 
         locationManager.onLocationUpdate = { location in
             // Record location to history (this was failing before due to closure capture)
             historyMgr.addLocation(location)
+
+            // Track city visits (rate-limited internally)
+            cityTrk.processLocation(location)
+
+            // Track place visits during active tracking
+            placeMgr.processLocation(location, timestamp: location.timestamp)
 
             let distance = locMgr.getDistanceFromLastSent() ?? 0
 
@@ -710,16 +728,37 @@ struct MainView: View {
     }
 
     private func setupGeofenceCallbacks() {
-        geofenceManager.onShouldStartTracking = { [self] in
-            if !isTracking {
-                startTracking()
+        // Capture TrackingStateManager for geofence callbacks
+        let trackingManager = TrackingStateManager.shared
+
+        geofenceManager.onShouldStartTracking = {
+            // Use TrackingStateManager for coordinated, debounced start
+            let success = trackingManager.startTracking(source: .geofenceExit)
+
+            if success {
+                print("[Geofence] Tracking started via geofence exit")
+                HapticManager.shared.trackingStarted()
+            } else {
+                print("[Geofence] Start tracking request was blocked (debounced or already tracking)")
             }
         }
-        geofenceManager.onShouldStopTracking = { [self] in
-            if isTracking {
-                stopTracking()
+
+        geofenceManager.onShouldStopTracking = {
+            // Use TrackingStateManager for coordinated, debounced stop
+            let success = trackingManager.stopTracking(source: .geofenceEnter)
+
+            if success {
+                print("[Geofence] Tracking stopped via geofence enter")
+                HapticManager.shared.trackingStopped()
+            } else {
+                print("[Geofence] Stop tracking request was blocked (debounced or not tracking)")
             }
         }
+    }
+
+    private func clearGeofenceCallbacks() {
+        geofenceManager.onShouldStartTracking = nil
+        geofenceManager.onShouldStopTracking = nil
     }
 
     private func checkForSessionRecovery() {
@@ -731,41 +770,81 @@ struct MainView: View {
         }
     }
 
-    private func autoStartTrackingIfNeeded() {
-        // Delay to let geofence manager check current zone state
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // Don't auto-start if:
-            // 1. Already tracking
-            // 2. Server not configured
-            // 3. Inside a geofence zone that should stop tracking
-            guard !isTracking else {
-                print("[AutoStart] Already tracking - skipping auto-start")
-                return
-            }
-
-            guard settingsManager.isConfigured else {
-                print("[AutoStart] Server not configured - skipping auto-start")
-                return
-            }
-
-            // Check if inside a "stop tracking" geofence
-            if let currentZone = geofenceManager.currentZone {
-                switch currentZone.action {
-                case .homeMode, .stopOnEnter:
-                    print("[AutoStart] Inside '\(currentZone.name)' (stop zone) - skipping auto-start")
-                    return
-                default:
-                    break
-                }
-            }
-
-            // Auto-start tracking
-            print("[AutoStart] Auto-starting tracking on app launch")
-            startTracking()
-
-            // Send notification
-            sendAutoStartNotification()
+    /// Coordinated startup sequence that waits for geofence state before making decisions
+    /// This replaces the previous separate delayed operations that could race
+    private func performCoordinatedStartup() {
+        guard !startupCompleted else {
+            print("[Startup] Already completed startup sequence")
+            return
         }
+
+        print("[Startup] ========== Starting coordinated startup ==========")
+
+        // Capture references for use in closures
+        let geoMgr = geofenceManager
+
+        // Small delay to let the app initialize
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Step 1: Wait for geofence state check to complete (if monitoring)
+            if geoMgr.isMonitoring {
+                print("[Startup] Step 1: Waiting for geofence state check...")
+
+                geoMgr.checkCurrentZoneStates {
+                    print("[Startup] Step 1: Geofence state check complete")
+                    self.completeStartupSequence()
+                }
+            } else {
+                print("[Startup] Step 1: Geofencing not active - proceeding immediately")
+                self.completeStartupSequence()
+            }
+        }
+    }
+
+    /// Second phase of startup after geofence state is known
+    private func completeStartupSequence() {
+        startupCompleted = true
+
+        // Step 2: Check if in stop zone
+        if trackingStateManager.isInStopZone() {
+            if let zone = geofenceManager.currentZone {
+                print("[Startup] Step 2: In stop zone '\(zone.name)' - will NOT auto-start")
+            }
+            // Still check for interrupted tracking (to show recovery option)
+            checkForInterruptedTrackingRecovery()
+            print("[Startup] ========== Startup complete (in stop zone) ==========")
+            return
+        }
+
+        // Step 3: Check if already tracking
+        guard !trackingStateManager.isTracking else {
+            print("[Startup] Step 2: Already tracking - skipping auto-start")
+            print("[Startup] ========== Startup complete (already tracking) ==========")
+            return
+        }
+
+        // Step 4: Check if configured
+        guard settingsManager.isConfigured else {
+            print("[Startup] Step 3: Server not configured - skipping auto-start")
+            print("[Startup] ========== Startup complete (not configured) ==========")
+            return
+        }
+
+        // Step 5: Auto-start tracking
+        print("[Startup] Step 4: Auto-starting tracking...")
+        let success = trackingStateManager.startTracking(source: .autoStart)
+
+        if success {
+            print("[Startup] Auto-start successful")
+            HapticManager.shared.trackingStarted()
+            sendAutoStartNotification()
+        } else {
+            print("[Startup] Auto-start was blocked")
+        }
+
+        // Step 6: Check for interrupted tracking (even if auto-start succeeded, user might want to know)
+        checkForInterruptedTrackingRecovery()
+
+        print("[Startup] ========== Startup complete ==========")
     }
 
     private func sendAutoStartNotification() {
@@ -787,46 +866,47 @@ struct MainView: View {
         }
     }
 
-    private func checkForInterruptedTracking() {
-        // Delay to run after auto-start check (1.5 sec vs 1.0 sec)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            // Skip if already tracking (auto-start handled it)
-            guard !isTracking else {
-                print("[RestartDetection] Already tracking - skipping interrupted check")
-                return
-            }
-
-            // Check if was tracking before termination
-            guard historyManager.wasTrackingBeforeTermination() else {
-                print("[RestartDetection] Was not tracking before termination")
-                return
-            }
-
-            // Check if it's been a while (indicating restart/crash, not normal app switch)
-            if let lastTimestamp = historyManager.getLastTrackingTimestamp() {
-                let timeSinceLastTracking = Date().timeIntervalSince(lastTimestamp)
-
-                // If more than 5 minutes since last tracking activity
-                if timeSinceLastTracking > 300 {
-                    print("[RestartDetection] Tracking was interrupted \(Int(timeSinceLastTracking/60)) min ago - showing alert")
-                    showInterruptedTrackingAlert = true
-                } else {
-                    print("[RestartDetection] Recent tracking activity (\(Int(timeSinceLastTracking))s ago) - not showing alert")
-                }
-            }
-
-            // Clear the state so we don't show again
-            historyManager.clearWasTrackingState()
+    /// Check if tracking was interrupted (phone restart, app crash) and offer recovery
+    private func checkForInterruptedTrackingRecovery() {
+        // Skip if already tracking
+        guard !trackingStateManager.isTracking else {
+            print("[RestartDetection] Already tracking - skipping interrupted check")
+            return
         }
+
+        // Check if was tracking before termination
+        guard historyManager.wasTrackingBeforeTermination() else {
+            print("[RestartDetection] Was not tracking before termination")
+            return
+        }
+
+        // Check if it's been a while (indicating restart/crash, not normal app switch)
+        if let lastTimestamp = historyManager.getLastTrackingTimestamp() {
+            let timeSinceLastTracking = Date().timeIntervalSince(lastTimestamp)
+
+            // If more than 5 minutes since last tracking activity
+            if timeSinceLastTracking > 300 {
+                print("[RestartDetection] Tracking was interrupted \(Int(timeSinceLastTracking/60)) min ago - showing alert")
+                showInterruptedTrackingAlert = true
+            } else {
+                print("[RestartDetection] Recent tracking activity (\(Int(timeSinceLastTracking))s ago) - not showing alert")
+            }
+        }
+
+        // Clear the state so we don't show again
+        historyManager.clearWasTrackingState()
     }
 
     // MARK: - Formatters
 
     private func formatDistance(_ meters: Double) -> String {
-        if meters >= 1000 {
-            return String(format: "%.1f km", meters / 1000)
+        let miles = meters / 1609.344
+        if miles >= 0.1 {
+            return String(format: "%.2f mi", miles)
         }
-        return String(format: "%.0f m", meters)
+        // Show feet for very short distances
+        let feet = meters * 3.28084
+        return String(format: "%.0f ft", feet)
     }
 
     private func formatAccuracy(_ accuracy: Double?) -> String {
