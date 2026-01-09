@@ -50,6 +50,8 @@ struct MainView: View {
                     homeTab
                 case AppTab.countries.rawValue:
                     CountriesView()
+                case AppTab.ukCities.rawValue:
+                    UKCitiesView()
                 case AppTab.insights.rawValue:
                     InsightsView()
                 case AppTab.settings.rawValue:
@@ -703,6 +705,7 @@ struct MainView: View {
         let locMgr = locationManager
         let cityTrk = CityTracker.shared
         let placeMgr = PlaceDetectionManager.shared
+        let ukCitiesMgr = UKCitiesManager.shared
 
         locationManager.onLocationUpdate = { location in
             // Record location to history (this was failing before due to closure capture)
@@ -710,6 +713,9 @@ struct MainView: View {
 
             // Track city visits (rate-limited internally)
             cityTrk.processLocation(location)
+
+            // Track UK city/LAD visits automatically (rate-limited internally)
+            ukCitiesMgr.processLocation(location)
 
             // Track place visits during active tracking
             placeMgr.processLocation(location, timestamp: location.timestamp)

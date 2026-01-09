@@ -160,6 +160,9 @@ class TrackingStateManager: ObservableObject {
         // Start a new session
         TrackingHistoryManager.shared.startNewSession()
 
+        // Reset UK cities session tracking (prevents duplicate notifications)
+        UKCitiesManager.shared.resetSessionTracking()
+
         // Update our state
         DispatchQueue.main.async { [weak self] in
             self?.isTracking = true

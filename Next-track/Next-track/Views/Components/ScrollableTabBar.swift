@@ -377,8 +377,9 @@ enum AppTab: Int, CaseIterable {
     case places = 2
     case track = 3
     case countries = 4
-    case insights = 5
-    case settings = 6
+    case ukCities = 5
+    case insights = 6
+    case settings = 7
 
     var tabItem: TabItem {
         switch self {
@@ -392,6 +393,8 @@ enum AppTab: Int, CaseIterable {
             return TabItem(title: "Track", icon: "location.fill", color: .green, gradientColors: [.green, .mint])
         case .countries:
             return TabItem(title: "Countries", icon: "globe.americas.fill", color: .teal, gradientColors: [.teal, .cyan])
+        case .ukCities:
+            return TabItem(title: "UK", icon: "map.fill", color: .indigo, gradientColors: [.indigo, .blue])
         case .insights:
             return TabItem(title: "Insights", icon: "chart.pie.fill", color: .pink, gradientColors: [.pink, .red])
         case .settings:

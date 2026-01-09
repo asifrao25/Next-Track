@@ -190,3 +190,171 @@ struct CountryPolygon: Identifiable {
         self.isVisited = isVisited
     }
 }
+
+// MARK: - UK LAD GeoJSON Structures
+
+/// GeoJSON root structure for UK Local Authority Districts
+struct UKLADGeoJSON: Codable {
+    let type: String
+    let features: [UKLADFeature]
+}
+
+/// UK LAD Feature
+struct UKLADFeature: Codable, Identifiable {
+    let type: String
+    let properties: UKLADProperties
+    let geometry: UKLADGeometry
+
+    var id: String { properties.name }
+}
+
+/// UK LAD Properties
+struct UKLADProperties: Codable {
+    let name: String        // LAD name (e.g., "Nottingham", "Bristol, City of")
+    let code: String        // LAD code (e.g., "E06000018")
+    let region: String      // Region code (ENG, WAL, SCO, NI)
+}
+
+/// UK LAD Geometry
+struct UKLADGeometry: Codable {
+    let type: String          // "Polygon" or "MultiPolygon"
+    let coordinates: JSONAny  // Nested arrays of coordinates
+}
+
+// MARK: - UK LAD Parser Extension
+
+extension GeoJSONParser {
+
+    /// Parse polygon coordinates from UK LAD geometry
+    static func parsePolygons(from geometry: UKLADGeometry) -> [[CLLocationCoordinate2D]] {
+        var result: [[CLLocationCoordinate2D]] = []
+
+        guard let coordsAny = geometry.coordinates.value as? [Any] else {
+            return result
+        }
+
+        if geometry.type == "Polygon" {
+            // Polygon: [[[lon, lat], [lon, lat], ...]]
+            if let rings = coordsAny as? [[[Double]]] {
+                for ring in rings {
+                    let coords = ring.compactMap { pair -> CLLocationCoordinate2D? in
+                        guard pair.count >= 2 else { return nil }
+                        return CLLocationCoordinate2D(latitude: pair[1], longitude: pair[0])
+                    }
+                    if !coords.isEmpty {
+                        result.append(coords)
+                    }
+                }
+            }
+        } else if geometry.type == "MultiPolygon" {
+            // MultiPolygon: [[[[lon, lat], [lon, lat], ...]], ...]
+            if let polygons = coordsAny as? [[[[Double]]]] {
+                for polygon in polygons {
+                    for ring in polygon {
+                        let coords = ring.compactMap { pair -> CLLocationCoordinate2D? in
+                            guard pair.count >= 2 else { return nil }
+                            return CLLocationCoordinate2D(latitude: pair[1], longitude: pair[0])
+                        }
+                        if !coords.isEmpty {
+                            result.append(coords)
+                        }
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+
+    /// Calculate the centroid of a UK LAD geometry
+    static func calculateCentroid(from geometry: UKLADGeometry) -> CLLocationCoordinate2D? {
+        let polygons = parsePolygons(from: geometry)
+        guard !polygons.isEmpty else { return nil }
+
+        var totalLat: Double = 0
+        var totalLon: Double = 0
+        var count: Double = 0
+
+        for polygon in polygons {
+            for coord in polygon {
+                totalLat += coord.latitude
+                totalLon += coord.longitude
+                count += 1
+            }
+        }
+
+        guard count > 0 else { return nil }
+        return CLLocationCoordinate2D(
+            latitude: totalLat / count,
+            longitude: totalLon / count
+        )
+    }
+
+    // MARK: - Point-in-Polygon Detection
+
+    /// Check if a coordinate is inside a polygon using ray casting algorithm
+    /// This is the standard algorithm for point-in-polygon detection
+    static func isPoint(_ point: CLLocationCoordinate2D, insidePolygon polygon: [CLLocationCoordinate2D]) -> Bool {
+        guard polygon.count >= 3 else { return false }
+
+        var isInside = false
+        var j = polygon.count - 1
+
+        for i in 0..<polygon.count {
+            let pi = polygon[i]
+            let pj = polygon[j]
+
+            // Ray casting: count how many times a ray from point to infinity crosses polygon edges
+            if ((pi.latitude > point.latitude) != (pj.latitude > point.latitude)) &&
+                (point.longitude < (pj.longitude - pi.longitude) * (point.latitude - pi.latitude) / (pj.latitude - pi.latitude) + pi.longitude) {
+                isInside = !isInside
+            }
+            j = i
+        }
+
+        return isInside
+    }
+
+    /// Check if a coordinate is inside any polygon of a UK LAD geometry
+    static func isPoint(_ point: CLLocationCoordinate2D, insideLADGeometry geometry: UKLADGeometry) -> Bool {
+        let polygons = parsePolygons(from: geometry)
+
+        for polygon in polygons {
+            if isPoint(point, insidePolygon: polygon) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Calculate bounding box for a UK LAD geometry (for quick rejection testing)
+    static func boundingBox(for geometry: UKLADGeometry) -> (minLat: Double, maxLat: Double, minLon: Double, maxLon: Double)? {
+        let polygons = parsePolygons(from: geometry)
+        guard !polygons.isEmpty else { return nil }
+
+        var minLat = Double.greatestFiniteMagnitude
+        var maxLat = -Double.greatestFiniteMagnitude
+        var minLon = Double.greatestFiniteMagnitude
+        var maxLon = -Double.greatestFiniteMagnitude
+
+        for polygon in polygons {
+            for coord in polygon {
+                minLat = min(minLat, coord.latitude)
+                maxLat = max(maxLat, coord.latitude)
+                minLon = min(minLon, coord.longitude)
+                maxLon = max(maxLon, coord.longitude)
+            }
+        }
+
+        return (minLat, maxLat, minLon, maxLon)
+    }
+
+    /// Check if a point is within a bounding box (quick rejection test)
+    static func isPoint(_ point: CLLocationCoordinate2D, inBoundingBox box: (minLat: Double, maxLat: Double, minLon: Double, maxLon: Double)) -> Bool {
+        return point.latitude >= box.minLat &&
+               point.latitude <= box.maxLat &&
+               point.longitude >= box.minLon &&
+               point.longitude <= box.maxLon
+    }
+}

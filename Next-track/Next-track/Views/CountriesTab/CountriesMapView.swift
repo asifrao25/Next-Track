@@ -258,13 +258,18 @@ struct CountriesMapView: View {
                     }
                 }
 
-                // Add premium flag markers for visited countries
+                // Invisible tap targets at country centers (no visible markers)
                 ForEach(visitedCountries) { country in
                     if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
                         Annotation("", coordinate: center) {
-                            PremiumFlagMarker(country: country) {
-                                selectedCountry = country
-                            }
+                            // Invisible tap area - large enough to tap easily
+                            Color.clear
+                                .frame(width: 60, height: 60)
+                                .contentShape(Circle())
+                                .onTapGesture {
+                                    HapticManager.shared.selectionChanged()
+                                    selectedCountry = country
+                                }
                         }
                     }
                 }
