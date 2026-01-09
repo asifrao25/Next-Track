@@ -414,16 +414,10 @@ struct StatsHistoryView: View {
                     .foregroundColor(.blue)
                 Text("Daily Records")
                     .font(.headline)
-                // Show filtered count / total count
-                if selectedTimeRange == .allTime {
-                    Text("(\(totalUniqueDays) \(totalUniqueDays == 1 ? "day" : "days") total)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("(\(dailyStatsToShow.count) of \(totalUniqueDays) days)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                // Always show total count - not filtered
+                Text("(\(totalUniqueDays) \(totalUniqueDays == 1 ? "day" : "days"))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)
@@ -476,21 +470,11 @@ struct StatsHistoryView: View {
         }
     }
 
+    /// Daily stats always shows ALL days - not filtered by time range
+    /// Time range only affects the summary stats cards at the top
     private var dailyStatsToShow: [DailyStats] {
-        switch selectedTimeRange {
-        case .today:
-            // Show today's stats only
-            return historyManager.dailyStats.filter {
-                Calendar.current.isDateInToday($0.date)
-            }
-        case .week:
-            // Show last 7 days
-            let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-            return historyManager.dailyStats.filter { $0.date >= weekAgo }
-        case .allTime:
-            // Show all days (no limit)
-            return historyManager.dailyStats
-        }
+        // Always show all days in Daily Records section
+        return historyManager.dailyStats
     }
 
     /// Total unique days across all data (for display in header)
