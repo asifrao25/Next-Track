@@ -7,19 +7,25 @@
 
 import SwiftUI
 
-// MARK: - Pulsing Status Indicator
+// MARK: - Techy Status Indicator (Radar-style with radiating rings)
 
 struct PulsingStatusIndicator: View {
     enum Status {
-        case active      // Green pulsing - tracking active and connected
+        case active      // Green radiating - tracking active and connected
         case paused      // Static gray - tracking paused
-        case warning     // Orange pulsing - issues detected
+        case warning     // Orange radiating - issues detected
     }
 
     let status: Status
     let size: CGFloat
 
-    @State private var isPulsing = false
+    @State private var ring1Scale: CGFloat = 0.5
+    @State private var ring2Scale: CGFloat = 0.5
+    @State private var ring3Scale: CGFloat = 0.5
+    @State private var ring1Opacity: Double = 0.8
+    @State private var ring2Opacity: Double = 0.8
+    @State private var ring3Opacity: Double = 0.8
+    @State private var isAnimating = false
 
     init(status: Status, size: CGFloat = 10) {
         self.status = status
@@ -27,25 +33,56 @@ struct PulsingStatusIndicator: View {
     }
 
     var body: some View {
-        Circle()
-            .fill(statusColor)
-            .frame(width: size, height: size)
-            .scaleEffect(shouldPulse ? (isPulsing ? 1.5 : 1.0) : 1.0)
-            .opacity(shouldPulse ? (isPulsing ? 0.4 : 1.0) : 1.0)
-            .animation(
-                shouldPulse
-                    ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
-                    : .default,
-                value: isPulsing
-            )
-            .onAppear {
-                if shouldPulse {
-                    isPulsing = true
-                }
+        ZStack {
+            // Outer radiating rings (only when active/warning)
+            if shouldAnimate {
+                // Ring 3 (outermost)
+                Circle()
+                    .stroke(statusColor.opacity(ring3Opacity), lineWidth: 1)
+                    .frame(width: size * ring3Scale, height: size * ring3Scale)
+
+                // Ring 2
+                Circle()
+                    .stroke(statusColor.opacity(ring2Opacity), lineWidth: 1.5)
+                    .frame(width: size * ring2Scale, height: size * ring2Scale)
+
+                // Ring 1 (innermost ring)
+                Circle()
+                    .stroke(statusColor.opacity(ring1Opacity), lineWidth: 1.5)
+                    .frame(width: size * ring1Scale, height: size * ring1Scale)
             }
-            .onChange(of: status) { _, newStatus in
-                isPulsing = newStatus != .paused
+
+            // Center tech element - hexagonal/target style
+            ZStack {
+                // Outer hexagon frame
+                RegularPolygon(sides: 6)
+                    .stroke(statusColor.opacity(0.6), lineWidth: 1.5)
+                    .frame(width: size * 0.9, height: size * 0.9)
+
+                // Inner filled circle
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: size * 0.45, height: size * 0.45)
+
+                // Tiny center dot for tech effect
+                Circle()
+                    .fill(Color.white.opacity(0.8))
+                    .frame(width: size * 0.15, height: size * 0.15)
             }
+        }
+        .frame(width: size * 2.5, height: size * 2.5) // Fixed frame to prevent jumping
+        .onAppear {
+            if shouldAnimate {
+                startRadiatingAnimation()
+            }
+        }
+        .onChange(of: status) { _, _ in
+            if shouldAnimate {
+                startRadiatingAnimation()
+            } else {
+                stopAnimation()
+            }
+        }
     }
 
     private var statusColor: Color {
@@ -59,8 +96,82 @@ struct PulsingStatusIndicator: View {
         }
     }
 
-    private var shouldPulse: Bool {
+    private var shouldAnimate: Bool {
         status != .paused
+    }
+
+    private func startRadiatingAnimation() {
+        guard !isAnimating else { return }
+        isAnimating = true
+
+        // Reset to initial state
+        ring1Scale = 0.5
+        ring2Scale = 0.5
+        ring3Scale = 0.5
+        ring1Opacity = 0.8
+        ring2Opacity = 0.8
+        ring3Opacity = 0.8
+
+        // Staggered radiating animation for each ring
+        withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
+            ring1Scale = 2.2
+            ring1Opacity = 0
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                ring2Scale = 2.2
+                ring2Opacity = 0
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                ring3Scale = 2.2
+                ring3Opacity = 0
+            }
+        }
+    }
+
+    private func stopAnimation() {
+        isAnimating = false
+        withAnimation(.easeOut(duration: 0.3)) {
+            ring1Scale = 0.5
+            ring2Scale = 0.5
+            ring3Scale = 0.5
+            ring1Opacity = 0
+            ring2Opacity = 0
+            ring3Opacity = 0
+        }
+    }
+}
+
+// MARK: - Regular Polygon Shape
+
+struct RegularPolygon: Shape {
+    let sides: Int
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let angleStep = Double.pi * 2 / Double(sides)
+        let startAngle = -Double.pi / 2 // Start from top
+
+        for i in 0..<sides {
+            let angle = startAngle + angleStep * Double(i)
+            let point = CGPoint(
+                x: center.x + CGFloat(cos(angle)) * radius,
+                y: center.y + CGFloat(sin(angle)) * radius
+            )
+            if i == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
