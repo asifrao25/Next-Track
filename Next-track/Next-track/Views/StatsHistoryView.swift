@@ -26,6 +26,7 @@ struct StatsHistoryView: View {
     @State private var showImportError = false
     @State private var showFolderPicker = false
     @State private var showSessionsList = false  // Collapsed by default
+    @State private var showDailyStats = false     // Collapsed by default
 
     enum TimeRange: String, CaseIterable {
         case today = "Today"
@@ -65,6 +66,7 @@ struct StatsHistoryView: View {
                     sessionsSection
                 }
                 .padding(.vertical)
+                .padding(.bottom, 100) // Space for tab bar
             }
             .navigationTitle("Stats & History")
             .toolbar {
@@ -402,49 +404,74 @@ struct StatsHistoryView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Daily Stats Section
+    // MARK: - Daily Stats Section (Collapsible)
 
     private var dailyStatsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
+            // Collapsible header
             HStack {
                 Image(systemName: "calendar")
                     .foregroundColor(.blue)
-                Text("Daily Stats")
+                Text("Daily Records")
                     .font(.headline)
+                // Show filtered count / total count
+                if selectedTimeRange == .allTime {
+                    Text("(\(totalUniqueDays) \(totalUniqueDays == 1 ? "day" : "days") total)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("(\(dailyStatsToShow.count) of \(totalUniqueDays) days)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
-                Text("\(historyManager.dailyStats.count) days")
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(showDailyStats ? 90 : 0))
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showDailyStats.toggle()
+                }
             }
             .padding(.horizontal)
 
-            if historyManager.dailyStats.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("No tracking history yet")
-                        .foregroundColor(.secondary)
-                    Text("Start tracking to see daily summaries here")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(dailyStatsToShow) { daily in
-                        DailyStatsRowView(
-                            dailyStats: daily,
-                            onOpenInMaps: { openDayInMaps(daily) },
-                            onShareGPX: { shareDayGPX(daily) },
-                            onDeleteSession: { session in
-                                historyManager.deleteSession(session)
-                            }
-                        )
+            // Expanded daily stats list
+            if showDailyStats {
+                if historyManager.dailyStats.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("No tracking history yet")
+                            .foregroundColor(.secondary)
+                        Text("Start tracking to see daily summaries here")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(dailyStatsToShow) { daily in
+                            DailyStatsRowView(
+                                dailyStats: daily,
+                                onOpenInMaps: { openDayInMaps(daily) },
+                                onShareGPX: { shareDayGPX(daily) },
+                                onDeleteSession: { session in
+                                    historyManager.deleteSession(session)
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
-                .padding(.horizontal)
             }
         }
     }
@@ -452,15 +479,23 @@ struct StatsHistoryView: View {
     private var dailyStatsToShow: [DailyStats] {
         switch selectedTimeRange {
         case .today:
+            // Show today's stats only
             return historyManager.dailyStats.filter {
                 Calendar.current.isDateInToday($0.date)
             }
         case .week:
+            // Show last 7 days
             let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
             return historyManager.dailyStats.filter { $0.date >= weekAgo }
         case .allTime:
-            return Array(historyManager.dailyStats.prefix(30))
+            // Show all days (no limit)
+            return historyManager.dailyStats
         }
+    }
+
+    /// Total unique days across all data (for display in header)
+    private var totalUniqueDays: Int {
+        historyManager.dailyStats.count
     }
 
     // MARK: - Sessions Section (Collapsible)
@@ -635,10 +670,13 @@ struct StatsHistoryView: View {
     // MARK: - Formatters
 
     private func formatDistance(_ meters: Double) -> String {
-        if meters >= 1000 {
-            return String(format: "%.1f km", meters / 1000)
+        let miles = meters / 1609.344
+        if miles >= 0.1 {
+            return String(format: "%.2f mi", miles)
         }
-        return String(format: "%.0f m", meters)
+        // Show feet for very short distances
+        let feet = meters * 3.28084
+        return String(format: "%.0f ft", feet)
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {

@@ -45,10 +45,13 @@ struct TrackingSession: Codable, Identifiable {
     }
 
     var formattedDistance: String {
-        if totalDistance >= 1000 {
-            return String(format: "%.2f km", totalDistance / 1000)
+        let miles = totalDistance / 1609.344
+        if miles >= 0.1 {
+            return String(format: "%.2f mi", miles)
         }
-        return String(format: "%.0f m", totalDistance)
+        // Show feet for very short distances
+        let feet = totalDistance * 3.28084
+        return String(format: "%.0f ft", feet)
     }
 
     var averageSpeed: Double? {
@@ -58,8 +61,8 @@ struct TrackingSession: Codable, Identifiable {
 
     var formattedAverageSpeed: String {
         guard let speed = averageSpeed else { return "--" }
-        let kmh = speed * 3.6
-        return String(format: "%.1f km/h", kmh)
+        let mph = speed * 2.23694 // m/s to mph
+        return String(format: "%.1f mph", mph)
     }
 
     /// Maximum altitude reached during the session
@@ -118,14 +121,16 @@ struct StoredLocation: Codable {
     let altitude: Double?
     let speed: Double?
     let accuracy: Double?
+    var activityType: String?  // Activity type from MotionManager (walking, running, driving, etc.)
 
-    init(from clLocation: CLLocation) {
+    init(from clLocation: CLLocation, activityType: String? = nil) {
         self.latitude = clLocation.coordinate.latitude
         self.longitude = clLocation.coordinate.longitude
         self.timestamp = clLocation.timestamp
         self.altitude = clLocation.altitude >= 0 ? clLocation.altitude : nil
         self.speed = clLocation.speed >= 0 ? clLocation.speed : nil
         self.accuracy = clLocation.horizontalAccuracy >= 0 ? clLocation.horizontalAccuracy : nil
+        self.activityType = activityType
     }
 
     var coordinate: CLLocationCoordinate2D {
@@ -163,10 +168,13 @@ struct DailyStats: Identifiable {
     }
 
     var formattedDistance: String {
-        if totalDistance >= 1000 {
-            return String(format: "%.2f km", totalDistance / 1000)
+        let miles = totalDistance / 1609.344
+        if miles >= 0.1 {
+            return String(format: "%.2f mi", miles)
         }
-        return String(format: "%.0f m", totalDistance)
+        // Show feet for very short distances
+        let feet = totalDistance * 3.28084
+        return String(format: "%.0f ft", feet)
     }
 
     var formattedDuration: String {
@@ -185,8 +193,8 @@ struct DailyStats: Identifiable {
 
     var formattedAverageSpeed: String {
         guard let speed = averageSpeed else { return "--" }
-        let kmh = speed * 3.6
-        return String(format: "%.1f km/h", kmh)
+        let mph = speed * 2.23694 // m/s to mph
+        return String(format: "%.1f mph", mph)
     }
 
     var formattedDate: String {
@@ -252,9 +260,12 @@ class TrackingHistoryManager: ObservableObject {
             UserDefaults.standard.removeObject(forKey: autoSaveKey)
             return
         }
-        if let data = try? JSONEncoder().encode(session) {
+        do {
+            let data = try JSONEncoder().encode(session)
             UserDefaults.standard.set(data, forKey: autoSaveKey)
             print("[TrackingHistory] Auto-saved session: \(session.pointsCount) points")
+        } catch {
+            print("[TrackingHistory] ERROR: Failed to encode session for auto-save: \(error.localizedDescription)")
         }
     }
 
@@ -358,9 +369,20 @@ class TrackingHistoryManager: ObservableObject {
     }
 
     func addLocation(_ location: CLLocation) {
-        guard var session = currentSession else { return }
-
+        // Ensure we're on main thread for @Published property updates
         let storedLocation = StoredLocation(from: location)
+
+        if Thread.isMainThread {
+            addLocationInternal(storedLocation)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.addLocationInternal(storedLocation)
+            }
+        }
+    }
+
+    private func addLocationInternal(_ storedLocation: StoredLocation) {
+        guard var session = currentSession else { return }
 
         // Calculate distance from last point
         if let lastLocation = session.locations.last {
@@ -437,23 +459,35 @@ class TrackingHistoryManager: ObservableObject {
     // MARK: - Daily Stats
 
     /// Get sessions grouped by day, sorted by date (most recent first)
+    /// Includes the current active session if there is one
     var dailyStats: [DailyStats] {
         let calendar = Calendar.current
 
+        // Combine completed sessions with current session if active
+        var allSessions = sessions
+        if let current = currentSession {
+            allSessions.insert(current, at: 0)
+        }
+
         // Group sessions by day
-        let grouped = Dictionary(grouping: sessions) { session in
+        let grouped = Dictionary(grouping: allSessions) { session in
             calendar.startOfDay(for: session.startTime)
         }
 
         // Convert to DailyStats array, sorted by date descending
-        return grouped.map { date, sessions in
+        return grouped.map { date, daySessions in
             DailyStats(
                 id: date,
                 date: date,
-                sessions: sessions.sorted { $0.startTime > $1.startTime }
+                sessions: daySessions.sorted { $0.startTime > $1.startTime }
             )
         }
         .sorted { $0.date > $1.date }
+    }
+
+    /// Total number of unique days with tracking data
+    var totalDaysTracked: Int {
+        dailyStats.count
     }
 
     /// Export all sessions for a specific day to GPX
@@ -516,8 +550,12 @@ class TrackingHistoryManager: ObservableObject {
     }
 
     private func saveSessions() {
-        if let data = try? JSONEncoder().encode(sessions) {
+        do {
+            let data = try JSONEncoder().encode(sessions)
             UserDefaults.standard.set(data, forKey: storageKey)
+            print("[TrackingHistory] Saved \(sessions.count) sessions to storage")
+        } catch {
+            print("[TrackingHistory] ERROR: Failed to save sessions: \(error.localizedDescription)")
         }
     }
 
