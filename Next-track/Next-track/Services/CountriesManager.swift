@@ -461,4 +461,119 @@ class CountriesManager: ObservableObject {
     func forceSyncFromCities() {
         syncWithCities(CityTracker.shared.visitedCities)
     }
+
+    // MARK: - Historical Import
+
+    /// Import historical countries from CSV analysis (one-time import)
+    /// Returns the number of countries successfully imported
+    func importHistoricalCountries() -> Int {
+        var importedCount = 0
+
+        // Helper to create dates from string
+        func makeDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = day
+            components.hour = hour
+            components.minute = minute
+            components.timeZone = TimeZone.current
+            return Calendar.current.date(from: components) ?? Date()
+        }
+
+        // Historical visits extracted from Visits.csv and LC_export.csv
+        // Format: (country name, ISO code, [(entry date, exit date)])
+        let historicalVisits: [(name: String, iso: String, sessions: [(entry: Date, exit: Date)])] = [
+            // Spain - 2 trips (Tenerife Feb 2025, Malaga Nov-Dec 2025)
+            ("Spain", "ES", [
+                (makeDate(2025, 2, 14, 3, 10), makeDate(2025, 2, 16, 19, 21)),
+                (makeDate(2025, 11, 29, 19, 31), makeDate(2025, 12, 1, 20, 12))
+            ]),
+            // Denmark (May 2025)
+            ("Denmark", "DK", [
+                (makeDate(2025, 5, 9, 18, 42), makeDate(2025, 5, 11, 18, 48))
+            ]),
+            // Czech Republic - Prague transit (May 2025)
+            ("Czech Republic", "CZ", [
+                (makeDate(2025, 5, 9, 13, 49), makeDate(2025, 5, 9, 13, 59))
+            ]),
+            // Hungary - Budapest (May 2025)
+            ("Hungary", "HU", [
+                (makeDate(2025, 5, 5, 22, 17), makeDate(2025, 5, 7, 19, 12))
+            ]),
+            // Qatar - transits (Dec 2019, Apr 2024)
+            ("Qatar", "QA", [
+                (makeDate(2019, 12, 22, 19, 28), makeDate(2019, 12, 22, 20, 49)),
+                (makeDate(2024, 4, 20, 19, 22), makeDate(2024, 4, 20, 19, 37))
+            ]),
+            // Pakistan - 5 trips
+            ("Pakistan", "PK", [
+                (makeDate(2019, 12, 22, 22, 0), makeDate(2019, 12, 29, 10, 53)),
+                (makeDate(2021, 6, 22, 4, 54), makeDate(2021, 7, 1, 6, 4)),
+                (makeDate(2021, 11, 25, 18, 43), makeDate(2021, 12, 5, 16, 31)),
+                (makeDate(2022, 11, 6, 7, 17), makeDate(2022, 11, 14, 0, 16)),
+                (makeDate(2024, 5, 5, 0, 10), makeDate(2024, 5, 19, 18, 19))
+            ]),
+            // Bahrain - transits (Jun-Jul 2021)
+            ("Bahrain", "BH", [
+                (makeDate(2021, 6, 21, 19, 22), makeDate(2021, 6, 21, 22, 4)),
+                (makeDate(2021, 7, 1, 9, 46), makeDate(2021, 7, 1, 10, 4))
+            ]),
+            // UAE - Dubai (Jan 2023)
+            ("United Arab Emirates", "AE", [
+                (makeDate(2023, 1, 17, 1, 25), makeDate(2023, 1, 22, 7, 53))
+            ]),
+            // Saudi Arabia - Medina/Umrah (Jan-Feb 2024)
+            ("Saudi Arabia", "SA", [
+                (makeDate(2024, 1, 30, 2, 11), makeDate(2024, 2, 10, 13, 26))
+            ]),
+            // Turkey - Antalya & Istanbul (Sep 2023)
+            ("Turkey", "TR", [
+                (makeDate(2023, 9, 6, 19, 40), makeDate(2023, 9, 11, 12, 0))
+            ]),
+            // Switzerland - Interlaken (Jul 2024)
+            ("Switzerland", "CH", [
+                (makeDate(2024, 7, 25, 19, 48), makeDate(2024, 7, 26, 9, 25))
+            ])
+        ]
+
+        for visit in historicalVisits {
+            // Skip if country already exists
+            guard !isCountryVisited(visit.iso) else {
+                print("[CountriesManager] Skipping \(visit.name) - already exists")
+                continue
+            }
+
+            // Get first session for the trip date
+            guard let firstSession = visit.sessions.first else { continue }
+
+            // Create a trip for the country
+            let trip = CountryTrip(
+                visitDate: firstSession.entry,
+                tripName: "Historical Import"
+            )
+
+            // Add the country
+            addManualCountry(name: visit.name, isoCode: visit.iso, trip: trip)
+
+            // Add all visit sessions for time tracking
+            for session in visit.sessions {
+                addManualVisitSession(
+                    isoCode: visit.iso,
+                    entryDate: session.entry,
+                    exitDate: session.exit
+                )
+            }
+
+            importedCount += 1
+            print("[CountriesManager] Imported \(visit.name) with \(visit.sessions.count) session(s)")
+        }
+
+        if importedCount > 0 {
+            HapticManager.shared.success()
+        }
+
+        print("[CountriesManager] Historical import complete: \(importedCount) countries imported")
+        return importedCount
+    }
 }

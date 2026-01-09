@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var isTestingConnection = false
     @State private var connectionTestResult: String?
     @State private var connectionTestSuccess: Bool?
+    @State private var showImportAlert = false
+    @State private var importAlertMessage = ""
 
     var body: some View {
         NavigationStack {
@@ -35,6 +37,9 @@ struct SettingsView: View {
 
                 // Advanced Section
                 advancedSection
+
+                // Countries Data Section
+                countriesSection
 
                 // About Section
                 aboutSection
@@ -66,6 +71,11 @@ struct SettingsView: View {
             }
             .onAppear {
                 loadSettings()
+            }
+            .alert("Import Complete", isPresented: $showImportAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importAlertMessage)
             }
         }
     }
@@ -275,6 +285,34 @@ struct SettingsView: View {
             Text("Advanced")
         } footer: {
             Text("Locations with accuracy worse than the minimum will be ignored.")
+        }
+    }
+
+    // MARK: - Countries Section
+
+    private var countriesSection: some View {
+        Section {
+            Button {
+                let count = CountriesManager.shared.importHistoricalCountries()
+                if count > 0 {
+                    importAlertMessage = "Successfully imported \(count) countries with visit sessions."
+                } else {
+                    importAlertMessage = "No new countries to import. All countries have already been added."
+                }
+                showImportAlert = true
+            } label: {
+                HStack {
+                    Label("Import Historical Countries", systemImage: "globe.badge.chevron.backward")
+                    Spacer()
+                    Text("11 countries")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            Text("Countries Data")
+        } footer: {
+            Text("Import pre-analyzed historical visits from 2019-2025 including Spain, Denmark, Hungary, Czech Republic, Pakistan, UAE, Turkey, Saudi Arabia, Qatar, Bahrain, and Switzerland.")
         }
     }
 
