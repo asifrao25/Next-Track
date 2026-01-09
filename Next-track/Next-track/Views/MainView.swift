@@ -1159,129 +1159,313 @@ struct TrackAppearanceSettingsView: View {
 
     var body: some View {
         Form {
+            // Today's Track Section
             Section {
-                Picker("Color", selection: $trackingSettings.trackAppearance.todayColor) {
-                    ForEach(TrackColorOption.allCases, id: \.self) { color in
-                        HStack {
-                            Circle()
-                                .fill(colorFor(color))
-                                .frame(width: 20, height: 20)
-                            Text(color.rawValue)
-                        }
-                        .tag(color)
-                    }
-                }
-                .onChange(of: trackingSettings.trackAppearance.todayColor) { _, _ in
-                    HapticManager.shared.selectionChanged()
-                }
+                // Color selection with visual swatches
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Color")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
 
-                Picker("Width", selection: $trackingSettings.trackAppearance.todayWidth) {
-                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
-                        Text(width.displayName).tag(width)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                        ForEach(TrackColorOption.allCases, id: \.self) { color in
+                            Button {
+                                trackingSettings.trackAppearance.todayColor = color
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(colorFor(color))
+                                    .frame(height: 44)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.todayColor == color ? Color.white : Color.clear, lineWidth: 3)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.todayColor == color ? colorFor(color) : Color.clear, lineWidth: 1)
+                                            .padding(2)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .onChange(of: trackingSettings.trackAppearance.todayWidth) { _, _ in
-                    HapticManager.shared.selectionChanged()
+                .padding(.vertical, 4)
+
+                // Width selection with visual line samples
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Width")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                            Button {
+                                trackingSettings.trackAppearance.todayWidth = width
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    RoundedRectangle(cornerRadius: CGFloat(width.rawValue) / 2)
+                                        .fill(colorFor(trackingSettings.trackAppearance.todayColor))
+                                        .frame(width: 50, height: CGFloat(width.rawValue))
+
+                                    Text("\(width.rawValue)pt")
+                                        .font(.caption2)
+                                        .foregroundColor(trackingSettings.trackAppearance.todayWidth == width ? .primary : .secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(trackingSettings.trackAppearance.todayWidth == width ? Color(.systemGray5) : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
+                .padding(.vertical, 4)
             } header: {
                 Text("Today's Track")
             } footer: {
-                Text("Current and today's completed tracking sessions")
+                Text("Current and today's completed sessions")
             }
 
+            // Last Week's Tracks Section
             Section {
-                Picker("Color", selection: $trackingSettings.trackAppearance.lastWeekColor) {
-                    ForEach(TrackColorOption.allCases, id: \.self) { color in
-                        HStack {
-                            Circle()
-                                .fill(colorFor(color))
-                                .frame(width: 20, height: 20)
-                            Text(color.rawValue)
-                        }
-                        .tag(color)
-                    }
-                }
-                .onChange(of: trackingSettings.trackAppearance.lastWeekColor) { _, _ in
-                    HapticManager.shared.selectionChanged()
-                }
+                // Color selection with visual swatches
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Color")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
 
-                Picker("Width", selection: $trackingSettings.trackAppearance.lastWeekWidth) {
-                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
-                        Text(width.displayName).tag(width)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                        ForEach(TrackColorOption.allCases, id: \.self) { color in
+                            Button {
+                                trackingSettings.trackAppearance.lastWeekColor = color
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(colorFor(color))
+                                    .frame(height: 44)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.lastWeekColor == color ? Color.white : Color.clear, lineWidth: 3)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.lastWeekColor == color ? colorFor(color) : Color.clear, lineWidth: 1)
+                                            .padding(2)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .onChange(of: trackingSettings.trackAppearance.lastWeekWidth) { _, _ in
-                    HapticManager.shared.selectionChanged()
+                .padding(.vertical, 4)
+
+                // Width selection
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Width")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                            Button {
+                                trackingSettings.trackAppearance.lastWeekWidth = width
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    RoundedRectangle(cornerRadius: CGFloat(width.rawValue) / 2)
+                                        .fill(colorFor(trackingSettings.trackAppearance.lastWeekColor))
+                                        .frame(width: 50, height: CGFloat(width.rawValue))
+
+                                    Text("\(width.rawValue)pt")
+                                        .font(.caption2)
+                                        .foregroundColor(trackingSettings.trackAppearance.lastWeekWidth == width ? .primary : .secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(trackingSettings.trackAppearance.lastWeekWidth == width ? Color(.systemGray5) : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
+                .padding(.vertical, 4)
             } header: {
                 Text("Last Week's Tracks")
             } footer: {
                 Text("Sessions from the past 7 days (excluding today)")
             }
 
+            // Older Tracks Section
             Section {
-                Picker("Color", selection: $trackingSettings.trackAppearance.olderColor) {
-                    ForEach(TrackColorOption.allCases, id: \.self) { color in
-                        HStack {
-                            Circle()
-                                .fill(colorFor(color))
-                                .frame(width: 20, height: 20)
-                            Text(color.rawValue)
-                        }
-                        .tag(color)
-                    }
-                }
-                .onChange(of: trackingSettings.trackAppearance.olderColor) { _, _ in
-                    HapticManager.shared.selectionChanged()
-                }
+                // Color selection with visual swatches
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Color")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
 
-                Picker("Width", selection: $trackingSettings.trackAppearance.olderWidth) {
-                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
-                        Text(width.displayName).tag(width)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                        ForEach(TrackColorOption.allCases, id: \.self) { color in
+                            Button {
+                                trackingSettings.trackAppearance.olderColor = color
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(colorFor(color))
+                                    .frame(height: 44)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.olderColor == color ? Color.white : Color.clear, lineWidth: 3)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(trackingSettings.trackAppearance.olderColor == color ? colorFor(color) : Color.clear, lineWidth: 1)
+                                            .padding(2)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .onChange(of: trackingSettings.trackAppearance.olderWidth) { _, _ in
-                    HapticManager.shared.selectionChanged()
+                .padding(.vertical, 4)
+
+                // Width selection
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Width")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                            Button {
+                                trackingSettings.trackAppearance.olderWidth = width
+                                HapticManager.shared.selectionChanged()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    RoundedRectangle(cornerRadius: CGFloat(width.rawValue) / 2)
+                                        .fill(colorFor(trackingSettings.trackAppearance.olderColor))
+                                        .frame(width: 50, height: CGFloat(width.rawValue))
+
+                                    Text("\(width.rawValue)pt")
+                                        .font(.caption2)
+                                        .foregroundColor(trackingSettings.trackAppearance.olderWidth == width ? .primary : .secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(trackingSettings.trackAppearance.olderWidth == width ? Color(.systemGray5) : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
+                .padding(.vertical, 4)
             } header: {
                 Text("Older Tracks")
             } footer: {
                 Text("Sessions older than 7 days")
             }
 
+            // Live Preview Section
             Section {
-                // Preview of track colors
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(colorFor(trackingSettings.trackAppearance.todayColor))
-                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.todayWidth.rawValue))
-                        Text("Today")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 16) {
+                    // Today preview
+                    HStack(spacing: 12) {
+                        ZStack {
+                            // Wavy line effect
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: 15))
+                                path.addCurve(
+                                    to: CGPoint(x: 80, y: 15),
+                                    control1: CGPoint(x: 20, y: 5),
+                                    control2: CGPoint(x: 60, y: 25)
+                                )
+                            }
+                            .stroke(
+                                colorFor(trackingSettings.trackAppearance.todayColor),
+                                style: StrokeStyle(lineWidth: CGFloat(trackingSettings.trackAppearance.todayWidth.rawValue), lineCap: .round)
+                            )
+                        }
+                        .frame(width: 80, height: 30)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Today")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("Full opacity")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
 
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(colorFor(trackingSettings.trackAppearance.lastWeekColor).opacity(0.7))
-                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.lastWeekWidth.rawValue))
-                        Text("Last Week")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // Last week preview
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: 15))
+                                path.addCurve(
+                                    to: CGPoint(x: 80, y: 15),
+                                    control1: CGPoint(x: 20, y: 5),
+                                    control2: CGPoint(x: 60, y: 25)
+                                )
+                            }
+                            .stroke(
+                                colorFor(trackingSettings.trackAppearance.lastWeekColor).opacity(0.7),
+                                style: StrokeStyle(lineWidth: CGFloat(trackingSettings.trackAppearance.lastWeekWidth.rawValue), lineCap: .round)
+                            )
+                        }
+                        .frame(width: 80, height: 30)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Last Week")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("70% opacity")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
 
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(colorFor(trackingSettings.trackAppearance.olderColor).opacity(0.5))
-                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.olderWidth.rawValue))
-                        Text("Older")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // Older preview
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: 15))
+                                path.addCurve(
+                                    to: CGPoint(x: 80, y: 15),
+                                    control1: CGPoint(x: 20, y: 5),
+                                    control2: CGPoint(x: 60, y: 25)
+                                )
+                            }
+                            .stroke(
+                                colorFor(trackingSettings.trackAppearance.olderColor).opacity(0.5),
+                                style: StrokeStyle(lineWidth: CGFloat(trackingSettings.trackAppearance.olderWidth.rawValue), lineCap: .round)
+                            )
+                        }
+                        .frame(width: 80, height: 30)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Older")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("50% opacity")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.vertical, 8)
             } header: {
-                Text("Preview")
+                Text("Live Preview")
             }
         }
         .navigationTitle("Track Appearance")
