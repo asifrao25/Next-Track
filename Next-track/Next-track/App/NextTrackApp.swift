@@ -47,12 +47,18 @@ struct NextTrackApp: App {
             // Save current session when app goes to background
             print("[NextTrackApp] App entering background - saving session")
             historyManager.saveCurrentSessionToDisk()
+
+            // Ensure auto-export task is scheduled
+            if AutoExportManager.shared.isEnabled {
+                AutoExportManager.shared.scheduleNextExport()
+            }
         case .inactive:
             // Also save on inactive (switching apps, control center, etc.)
             historyManager.saveCurrentSessionToDisk()
         case .active:
-            // App became active - could check for recovery session here
+            // App became active - check for missed exports
             print("[NextTrackApp] App became active")
+            AutoExportManager.shared.checkAndPerformMissedExport()
         @unknown default:
             break
         }

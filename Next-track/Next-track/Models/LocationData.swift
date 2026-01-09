@@ -96,55 +96,94 @@ class PendingLocationQueue {
     private let storageKey = "pendingLocations"
     private var queue: [PendingLocation] = []
 
+    // Thread synchronization queue
+    private let accessQueue = DispatchQueue(label: "com.nexttrack.pendingqueue", attributes: .concurrent)
+
+    // Maximum queue size to prevent unbounded growth
+    private let maxQueueSize = 1000
+
     private init() {
         load()
     }
 
-    var count: Int { queue.count }
-    var isEmpty: Bool { queue.isEmpty }
+    var count: Int {
+        accessQueue.sync { queue.count }
+    }
+
+    var isEmpty: Bool {
+        accessQueue.sync { queue.isEmpty }
+    }
 
     func add(_ location: LocationData) {
-        queue.append(PendingLocation(locationData: location))
-        save()
+        accessQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+
+            // Enforce max queue size - remove oldest if full
+            if self.queue.count >= self.maxQueueSize {
+                self.queue.removeFirst()
+                print("[PendingQueue] Queue full, removed oldest entry")
+            }
+
+            self.queue.append(PendingLocation(locationData: location))
+            self.saveInternal()
+        }
     }
 
     func getAll() -> [PendingLocation] {
-        return queue
+        accessQueue.sync { queue }
     }
 
     func remove(id: UUID) {
-        queue.removeAll { $0.id == id }
-        save()
+        accessQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            self.queue.removeAll { $0.id == id }
+            self.saveInternal()
+        }
     }
 
     func incrementRetry(id: UUID) {
-        if let index = queue.firstIndex(where: { $0.id == id }) {
-            queue[index].retryCount += 1
-            save()
+        accessQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            if let index = self.queue.firstIndex(where: { $0.id == id }) {
+                self.queue[index].retryCount += 1
+                self.saveInternal()
+            }
         }
     }
 
     func removeExceedingRetries(maxRetries: Int) {
-        queue.removeAll { $0.retryCount >= maxRetries }
-        save()
+        accessQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            self.queue.removeAll { $0.retryCount >= maxRetries }
+            self.saveInternal()
+        }
     }
 
     func clear() {
-        queue.removeAll()
-        save()
+        accessQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            self.queue.removeAll()
+            self.saveInternal()
+        }
     }
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let locations = try? JSONDecoder().decode([PendingLocation].self, from: data) else {
+            print("[PendingQueue] No saved queue or failed to decode")
             return
         }
         queue = locations
+        print("[PendingQueue] Loaded \(queue.count) pending locations")
     }
 
-    private func save() {
-        if let data = try? JSONEncoder().encode(queue) {
+    // Internal save - must be called within accessQueue barrier
+    private func saveInternal() {
+        do {
+            let data = try JSONEncoder().encode(queue)
             UserDefaults.standard.set(data, forKey: storageKey)
+        } catch {
+            print("[PendingQueue] Failed to save: \(error.localizedDescription)")
         }
     }
 }

@@ -159,24 +159,26 @@ class AutoExportManager: ObservableObject {
     func scheduleNextExport() {
         let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
 
-        // Schedule for next midnight
+        // Schedule for next midnight - use date arithmetic instead of component mutation
         let calendar = Calendar.current
-        var components = calendar.dateComponents([.year, .month, .day], from: Date())
-        components.day! += 1
-        components.hour = 0
-        components.minute = 5  // 12:05 AM to avoid exact midnight issues
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let startOfTomorrow = calendar.startOfDay(for: tomorrow)
 
-        if let nextMidnight = calendar.date(from: components) {
-            request.earliestBeginDate = nextMidnight
-            request.requiresNetworkConnectivity = false
-            request.requiresExternalPower = false
+        // Add 5 minutes past midnight to avoid exact midnight edge cases
+        guard let nextMidnight = calendar.date(byAdding: .minute, value: 5, to: startOfTomorrow) else {
+            print("[AutoExport] Failed to calculate next export time")
+            return
+        }
 
-            do {
-                try BGTaskScheduler.shared.submit(request)
-                print("[AutoExport] Scheduled export for: \(nextMidnight)")
-            } catch {
-                print("[AutoExport] Failed to schedule: \(error)")
-            }
+        request.earliestBeginDate = nextMidnight
+        request.requiresNetworkConnectivity = false
+        request.requiresExternalPower = false
+
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("[AutoExport] Scheduled export for: \(nextMidnight)")
+        } catch {
+            print("[AutoExport] Failed to schedule: \(error)")
         }
     }
 
@@ -196,6 +198,144 @@ class AutoExportManager: ObservableObject {
         // Perform export
         performDailyExport { success in
             task.setTaskCompleted(success: success)
+        }
+    }
+
+    // MARK: - Missed Export Recovery
+
+    /// Check if any exports were missed and perform them when app becomes active
+    /// This handles cases where iOS didn't run the scheduled background task
+    func checkAndPerformMissedExport() {
+        guard isEnabled else {
+            print("[AutoExport] Auto-export is disabled, skipping missed export check")
+            return
+        }
+
+        guard exportFolderURL != nil else {
+            print("[AutoExport] No export folder selected, skipping missed export check")
+            return
+        }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // Determine the last date that should have been exported
+        // Yesterday's data should have been exported at midnight
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
+            return
+        }
+
+        // Check if we already exported yesterday's data
+        if let lastExport = lastExportDate {
+            let lastExportDay = calendar.startOfDay(for: lastExport)
+
+            // If last export was today or yesterday, we're up to date
+            if lastExportDay >= yesterday {
+                print("[AutoExport] Exports are up to date (last export: \(lastExportDay))")
+                return
+            }
+
+            // Calculate how many days were missed
+            let daysMissed = calendar.dateComponents([.day], from: lastExportDay, to: yesterday).day ?? 0
+            print("[AutoExport] Detected \(daysMissed) missed export day(s)")
+
+            // Export each missed day
+            var exportedDays: [String] = []
+            for dayOffset in 1...daysMissed {
+                if let missedDate = calendar.date(byAdding: .day, value: dayOffset, to: lastExportDay) {
+                    if exportDayData(for: missedDate) {
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.dateFormat = "MMM d"
+                        exportedDays.append(dateFormatter.string(from: missedDate))
+                    }
+                }
+            }
+
+            // Send notification about recovered exports
+            if !exportedDays.isEmpty {
+                sendRecoveryNotification(days: exportedDays)
+            }
+        } else {
+            // No previous export date recorded - export yesterday if there's data
+            print("[AutoExport] No previous export date, attempting to export yesterday's data")
+            if exportDayData(for: yesterday) {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "MMM d"
+                sendRecoveryNotification(days: [dateFormatter.string(from: yesterday)])
+            }
+        }
+    }
+
+    /// Export data for a specific date
+    /// - Parameter date: The date to export sessions for
+    /// - Returns: True if sessions were exported, false otherwise
+    private func exportDayData(for date: Date) -> Bool {
+        guard let folderURL = exportFolderURL else { return false }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return false }
+
+        let historyManager = TrackingHistoryManager.shared
+        let sessionsToExport = historyManager.sessions.filter { session in
+            session.startTime >= startOfDay && session.startTime < endOfDay
+        }
+
+        guard !sessionsToExport.isEmpty else {
+            print("[AutoExport] No sessions for \(startOfDay), skipping")
+            return false
+        }
+
+        // Start accessing security-scoped resource
+        guard folderURL.startAccessingSecurityScopedResource() else {
+            print("[AutoExport] Cannot access folder for recovery export")
+            return false
+        }
+        defer { folderURL.stopAccessingSecurityScopedResource() }
+
+        // Generate GPX file
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dateFormatter.string(from: date)
+
+        let gpxContent = exportSessionsToSingleGPX(sessionsToExport, date: dateString)
+        let filename = "NextTrack-\(dateString).gpx"
+        let fileURL = folderURL.appendingPathComponent(filename)
+
+        do {
+            try gpxContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            print("[AutoExport] Recovered export: \(filename) with \(sessionsToExport.count) session(s)")
+            lastExportDate = Date()
+            lastExportStatus = "Recovered \(sessionsToExport.count) session(s) to \(filename)"
+            return true
+        } catch {
+            print("[AutoExport] Failed to export recovered data: \(error)")
+            return false
+        }
+    }
+
+    /// Send notification about recovered/missed exports
+    private func sendRecoveryNotification(days: [String]) {
+        let content = UNMutableNotificationContent()
+        content.title = "📁 Missed Export Recovered"
+
+        if days.count == 1 {
+            content.body = "Exported tracking data from \(days[0]) that was missed"
+        } else {
+            content.body = "Exported tracking data from \(days.joined(separator: ", ")) that was missed"
+        }
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "recoveredExport-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil  // Deliver immediately
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("[AutoExport] Failed to send recovery notification: \(error)")
+            }
         }
     }
 

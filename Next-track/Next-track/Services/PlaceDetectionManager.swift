@@ -87,8 +87,10 @@ class PlaceDetectionManager: ObservableObject {
             newPlaces[i].confidence = confidence
         }
 
+        // Capture final value for MainActor to avoid Swift 6 concurrency warning
+        let finalPlaces = newPlaces
         await MainActor.run {
-            self.detectedPlaces = newPlaces
+            self.detectedPlaces = finalPlaces
             self.processingProgress = 0.8
         }
 

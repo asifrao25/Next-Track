@@ -87,13 +87,13 @@ class BackgroundTaskManager {
         }
 
         task.expirationHandler = {
+            print("[BackgroundTaskManager] App refresh task expired")
             PhoneTrackAPI.shared.cancelCurrentRequest()
         }
 
-        PhoneTrackAPI.shared.sendPendingLocations()
-
-        // Give some time for the request to complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 25) {
+        // Use completion handler instead of arbitrary delay
+        PhoneTrackAPI.shared.sendPendingLocations {
+            print("[BackgroundTaskManager] App refresh task completed")
             task.setTaskCompleted(success: true)
         }
     }
@@ -105,13 +105,13 @@ class BackgroundTaskManager {
         scheduleBackgroundProcessing()
 
         task.expirationHandler = {
+            print("[BackgroundTaskManager] Background processing task expired")
             PhoneTrackAPI.shared.cancelCurrentRequest()
         }
 
-        // Send all pending locations
-        PhoneTrackAPI.shared.sendPendingLocations()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 25) {
+        // Use completion handler instead of arbitrary delay
+        PhoneTrackAPI.shared.sendPendingLocations {
+            print("[BackgroundTaskManager] Background processing task completed")
             task.setTaskCompleted(success: true)
         }
     }

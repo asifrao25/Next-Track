@@ -219,10 +219,12 @@ struct SettingsView: View {
                     in: 1...30
                 )
             }
+
+            Toggle("Smart Movement Tracking", isOn: $trackingSettings.smartMovementTrackingEnabled)
         } header: {
             Text("Battery Optimization")
         } footer: {
-            Text("Smart Mode reduces update frequency when battery is low. Significant Location mode only updates when you move ~500m (very low battery usage).")
+            Text("Smart Mode reduces update frequency when battery is low. Significant Location mode only updates when you move ~500m. Smart Movement Tracking progressively reduces frequency when stationary (up to 30 min intervals).")
         }
     }
 

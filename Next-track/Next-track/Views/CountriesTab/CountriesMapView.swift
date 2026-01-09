@@ -2,11 +2,196 @@
 //  CountriesMapView.swift
 //  Next-track
 //
-//  3D rotatable globe showing visited countries
+//  3D rotatable globe showing visited countries with premium visual effects
 //
 
 import SwiftUI
 import MapKit
+
+// MARK: - Animated Progress Ring
+
+struct AnimatedProgressRing: View {
+    let progress: Double
+    let lineWidth: CGFloat
+    let gradient: LinearGradient
+
+    @State private var animatedProgress: Double = 0
+
+    var body: some View {
+        ZStack {
+            // Background ring
+            Circle()
+                .stroke(Color.gray.opacity(0.2), lineWidth: lineWidth)
+
+            // Progress ring with gradient
+            Circle()
+                .trim(from: 0, to: animatedProgress)
+                .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+
+            // Center percentage text
+            Text("\(Int(progress * 100))%")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(.red)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.2)) {
+                animatedProgress = progress
+            }
+        }
+        .onChange(of: progress) { _, newValue in
+            withAnimation(.easeOut(duration: 0.5)) {
+                animatedProgress = newValue
+            }
+        }
+    }
+}
+
+// MARK: - Premium Flag Marker
+
+struct PremiumFlagMarker: View {
+    let country: VisitedCountry
+    let onTap: () -> Void
+
+    @State private var showGlow = true
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.selectionChanged()
+            onTap()
+        }) {
+            ZStack {
+                // Outer glow (pulsing)
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Color.red.opacity(showGlow ? 0.5 : 0.15),
+                            Color.orange.opacity(showGlow ? 0.3 : 0.05),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 14,
+                        endRadius: 32
+                    ))
+                    .frame(width: 60, height: 60)
+
+                // Flag container
+                ZStack {
+                    // Glassmorphic background
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 42, height: 42)
+
+                    // Gradient border
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.6),
+                                    Color.red.opacity(0.4),
+                                    Color.orange.opacity(0.3)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                        .frame(width: 42, height: 42)
+
+                    // Flag emoji
+                    Text(country.flagEmoji)
+                        .font(.system(size: 24))
+                }
+                .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
+                .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+            }
+            .scaleEffect(isPressed ? 0.9 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isPressed = pressing
+            }
+        }, perform: {})
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                showGlow.toggle()
+            }
+        }
+    }
+}
+
+// MARK: - Premium Control Button
+
+struct PremiumControlButton: View {
+    let icon: String
+    let action: () -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.buttonTap()
+            action()
+        }) {
+            ZStack {
+                // Background
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 48, height: 48)
+
+                // Gradient overlay when pressed
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.red, .orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ).opacity(isPressed ? 0.3 : 0)
+                    )
+                    .frame(width: 48, height: 48)
+
+                // Border
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.4),
+                                Color.red.opacity(0.3),
+                                Color.white.opacity(0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                    .frame(width: 48, height: 48)
+
+                // Icon
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.red, .orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .shadow(color: Color.red.opacity(isPressed ? 0.4 : 0.2), radius: isPressed ? 4 : 8)
+            .scaleEffect(isPressed ? 0.92 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = pressing
+            }
+        }, perform: {})
+    }
+}
+
+// MARK: - Countries Map View
 
 struct CountriesMapView: View {
     let visitedCountries: [VisitedCountry]
@@ -16,14 +201,14 @@ struct CountriesMapView: View {
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
-            distance: 45_000_000,  // Globe view distance - shows full Earth
+            distance: 45_000_000,
             heading: 0,
             pitch: 0
         )
     )
 
     @State private var selectedCountry: VisitedCountry?
-    @State private var showCountryDetail: Bool = false
+    @State private var currentDistance: Double = 45_000_000
 
     private var visitedIsoCodes: Set<String> {
         Set(visitedCountries.map { $0.isoCode.uppercased() })
@@ -38,34 +223,47 @@ struct CountriesMapView: View {
                         let isVisited = visitedIsoCodes.contains(feature.properties.isoA2?.uppercased() ?? "")
 
                         ForEach(Array(GeoJSONParser.parsePolygons(from: feature.geometry).enumerated()), id: \.offset) { _, coordinates in
-                            MapPolygon(coordinates: coordinates)
-                                .foregroundStyle(
-                                    isVisited
-                                        ? Color.teal.opacity(0.6)
-                                        : Color.gray.opacity(0.15)
-                                )
-                                .stroke(
-                                    isVisited ? Color.teal : Color.gray.opacity(0.3),
-                                    lineWidth: isVisited ? 1.5 : 0.5
-                                )
+                            if isVisited {
+                                // VISITED COUNTRY: Highlighted with teal fill and bright border
+                                MapPolygon(coordinates: coordinates)
+                                    .foregroundStyle(
+                                        Color.red.opacity(0.5)
+                                    )
+                                    .stroke(
+                                        Color.orange,
+                                        lineWidth: 2.5
+                                    )
+                            } else {
+                                // UNVISITED COUNTRY: Very subtle styling
+                                MapPolygon(coordinates: coordinates)
+                                    .foregroundStyle(Color.gray.opacity(0.05))
+                                    .stroke(Color.gray.opacity(0.15), lineWidth: 0.3)
+                            }
+                        }
+                    }
+                } else {
+                    // FALLBACK: No GeoJSON available - use circular highlight zones
+                    ForEach(visitedCountries) { country in
+                        if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
+                            // Outer glow circle
+                            MapCircle(center: center, radius: 400000) // 400km radius
+                                .foregroundStyle(Color.red.opacity(0.15))
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 2)
+
+                            // Inner highlight circle
+                            MapCircle(center: center, radius: 200000) // 200km radius
+                                .foregroundStyle(Color.red.opacity(0.25))
+                                .stroke(Color.orange.opacity(0.5), lineWidth: 3)
                         }
                     }
                 }
 
-                // Add flag markers for visited countries
+                // Add premium flag markers for visited countries
                 ForEach(visitedCountries) { country in
                     if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
-                        Annotation(country.name, coordinate: center) {
-                            Button {
+                        Annotation("", coordinate: center) {
+                            PremiumFlagMarker(country: country) {
                                 selectedCountry = country
-                                showCountryDetail = true
-                                HapticManager.shared.selectionChanged()
-                            } label: {
-                                VStack(spacing: 2) {
-                                    Text(country.flagEmoji)
-                                        .font(.title2)
-                                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                                }
                             }
                         }
                     }
@@ -73,7 +271,7 @@ struct CountriesMapView: View {
             }
             .mapStyle(.imagery(elevation: .realistic))
 
-            // Globe controls overlay
+            // Premium globe controls overlay
             VStack {
                 Spacer()
 
@@ -82,8 +280,8 @@ struct CountriesMapView: View {
 
                     VStack(spacing: 12) {
                         // Reset to globe view
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.5)) {
+                        PremiumControlButton(icon: "globe") {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                 cameraPosition = .camera(
                                     MapCamera(
                                         centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
@@ -92,78 +290,146 @@ struct CountriesMapView: View {
                                         pitch: 0
                                     )
                                 )
+                                currentDistance = 45_000_000
                             }
-                            HapticManager.shared.buttonTap()
-                        } label: {
-                            Image(systemName: "globe")
-                                .font(.title2)
-                                .foregroundColor(.teal)
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
+                        }
+
+                        // Zoom in
+                        PremiumControlButton(icon: "plus") {
+                            zoomIn()
+                        }
+
+                        // Zoom out
+                        PremiumControlButton(icon: "minus") {
+                            zoomOut()
                         }
                     }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 28)
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.3),
+                                        Color.red.opacity(0.2),
+                                        Color.white.opacity(0.1)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
                     .padding(.trailing, 16)
                     .padding(.bottom, 100)
                 }
             }
 
-            // Stats overlay
+            // Premium stats overlay
             VStack {
                 HStack {
-                    statsCard
+                    premiumStatsCard
                     Spacer()
                 }
                 .padding()
                 Spacer()
             }
         }
-        .sheet(isPresented: $showCountryDetail) {
-            if let country = selectedCountry {
-                NavigationStack {
-                    CountryDetailView(country: country)
-                }
-                .presentationDetents([.medium, .large])
+        // Show country detail sheet
+        .sheet(item: $selectedCountry) { country in
+            NavigationStack {
+                CountryDetailView(country: country)
             }
+            .presentationDetents([.medium, .large])
         }
     }
 
-    private var statsCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
+    // MARK: - Compact Pie Chart Stats
+
+    private var premiumStatsCard: some View {
+        ZStack {
+            // Background pie (gray for unvisited)
+            Circle()
+                .stroke(Color.gray.opacity(0.3), lineWidth: 8)
+
+            // Foreground pie (red for visited)
+            Circle()
+                .trim(from: 0, to: Double(visitedCountries.count) / 195.0)
+                .stroke(
+                    LinearGradient(
+                        colors: [.red, .orange],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            // Center content
+            VStack(spacing: 2) {
                 Text("\(visitedCountries.count)")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.teal)
-                Text("/ 195")
-                    .font(.subheadline)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.red, .orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                Text("/195")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
-
-            Text("countries visited")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 4)
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.teal)
-                        .frame(width: geo.size.width * CGFloat(min(visitedCountries.count, 195)) / 195, height: 4)
-                }
-            }
-            .frame(height: 4)
-            .frame(width: 100)
         }
-        .padding(12)
-        .background(.ultraThinMaterial)
-        .cornerRadius(12)
-        .shadow(radius: 4)
+        .frame(width: 64, height: 64)
+        .padding(10)
+        .background(
+            Circle()
+                .fill(.ultraThinMaterial)
+                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+        )
+    }
+
+    // MARK: - Helper Functions
+
+    private func zoomIn() {
+        let newDistance = max(currentDistance * 0.5, 500_000)
+        currentDistance = newDistance
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: getCameraCenter(),
+                    distance: newDistance,
+                    heading: 0,
+                    pitch: 0
+                )
+            )
+        }
+    }
+
+    private func zoomOut() {
+        let newDistance = min(currentDistance * 2.0, 60_000_000)
+        currentDistance = newDistance
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: getCameraCenter(),
+                    distance: newDistance,
+                    heading: 0,
+                    pitch: 0
+                )
+            )
+        }
+    }
+
+    private func getCameraCenter() -> CLLocationCoordinate2D {
+        // Just return default center - MapKit manages the actual position
+        return CLLocationCoordinate2D(latitude: 20, longitude: 0)
     }
 }
 
@@ -185,20 +451,9 @@ struct CountriesMapFallbackView: View {
         Map(position: $cameraPosition, interactionModes: [.rotate, .zoom, .pan]) {
             ForEach(visitedCountries) { country in
                 if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
-                    // Country marker
-                    Annotation(country.name, coordinate: center) {
-                        VStack(spacing: 2) {
-                            Text(country.flagEmoji)
-                                .font(.largeTitle)
-                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                            Text(country.name)
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(4)
+                    Annotation("", coordinate: center) {
+                        PremiumFlagMarker(country: country) {
+                            // Handle tap
                         }
                     }
                 }

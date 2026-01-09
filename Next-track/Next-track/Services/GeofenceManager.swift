@@ -59,16 +59,68 @@ class GeofenceManager: NSObject, ObservableObject {
 
     private let locationManager = CLLocationManager()
 
-    @Published var zones: [GeofenceZone] = []
+    // MARK: - Thread-Safe Zones Storage
+
+    /// Thread synchronization queue for zones array (reader-writer pattern)
+    private let zonesQueue = DispatchQueue(label: "com.nexttrack.geofence.zones", attributes: .concurrent)
+    private var _zones: [GeofenceZone] = []
+
+    /// Thread-safe zones array
+    var zones: [GeofenceZone] {
+        get { zonesQueue.sync { _zones } }
+        set { zonesQueue.async(flags: .barrier) { [weak self] in self?._zones = newValue } }
+    }
+
     @Published var isMonitoring: Bool = false
     @Published var currentZone: GeofenceZone?
 
     private let storageKey = "geofenceZones"
     private let monitoringStateKey = "geofenceMonitoringEnabled"
 
+    // MARK: - Debouncing
+
+    /// Last geofence action time for debouncing
+    private var lastGeofenceAction: Date?
+
+    /// Minimum time between geofence-triggered actions (prevents rapid toggling at boundaries)
+    private let debounceInterval: TimeInterval = 5.0
+
+    /// Check if enough time has passed to allow another geofence action
+    private func shouldTriggerAction() -> Bool {
+        if let lastAction = lastGeofenceAction,
+           Date().timeIntervalSince(lastAction) < debounceInterval {
+            print("[GeofenceManager] Debouncing - ignoring rapid event (\(String(format: "%.1f", Date().timeIntervalSince(lastAction)))s since last)")
+            return false
+        }
+        lastGeofenceAction = Date()
+        return true
+    }
+
     // Callback for triggering tracking
     var onShouldStartTracking: (() -> Void)?
     var onShouldStopTracking: (() -> Void)?
+
+    // MARK: - State Check Completion Tracking
+
+    /// Number of pending state check responses
+    private var pendingStateChecks: Int = 0
+
+    /// Completion handler for state check
+    private var stateCheckCompletion: (() -> Void)?
+
+    /// Decrement pending state checks and call completion if done
+    private func decrementPendingStateChecks() {
+        pendingStateChecks = max(0, pendingStateChecks - 1)
+        print("[GeofenceManager] Pending state checks: \(pendingStateChecks)")
+
+        if pendingStateChecks == 0, let completion = stateCheckCompletion {
+            print("[GeofenceManager] All state checks complete - calling completion")
+            stateCheckCompletion = nil
+            DispatchQueue.main.async {
+                completion()
+            }
+        }
+    }
 
     private override init() {
         super.init()
@@ -153,10 +205,35 @@ class GeofenceManager: NSObject, ObservableObject {
     }
 
     /// Check if user is currently inside any monitored zones
-    private func checkCurrentZoneStates() {
-        print("[GeofenceManager] Checking current zone states...")
-        for zone in zones where zone.isEnabled {
+    /// - Parameter completion: Called when all zone state checks have completed
+    func checkCurrentZoneStates(completion: (() -> Void)? = nil) {
+        let enabledZones = zones.filter { $0.isEnabled }
+        print("[GeofenceManager] Checking current zone states for \(enabledZones.count) zones...")
+
+        guard !enabledZones.isEmpty else {
+            print("[GeofenceManager] No enabled zones to check")
+            completion?()
+            return
+        }
+
+        // Set up completion tracking
+        pendingStateChecks = enabledZones.count
+        stateCheckCompletion = completion
+
+        // Request state for each zone
+        for zone in enabledZones {
             locationManager.requestState(for: zone.region)
+        }
+
+        // Timeout fallback - if delegate never responds, call completion anyway
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard let self = self, self.pendingStateChecks > 0 else { return }
+            print("[GeofenceManager] State check timeout - forcing completion")
+            self.pendingStateChecks = 0
+            if let completion = self.stateCheckCompletion {
+                self.stateCheckCompletion = nil
+                completion()
+            }
         }
     }
 
@@ -205,15 +282,21 @@ class GeofenceManager: NSObject, ObservableObject {
 
     private func loadZones() {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let zones = try? JSONDecoder().decode([GeofenceZone].self, from: data) else {
+              let loadedZones = try? JSONDecoder().decode([GeofenceZone].self, from: data) else {
             return
         }
-        self.zones = zones
+        // Use _zones directly during init (before queue is fully set up)
+        _zones = loadedZones
     }
 
     private func saveZones() {
-        if let data = try? JSONEncoder().encode(zones) {
+        // Get zones in a thread-safe manner
+        let zonesToSave = zones
+        do {
+            let data = try JSONEncoder().encode(zonesToSave)
             UserDefaults.standard.set(data, forKey: storageKey)
+        } catch {
+            print("[GeofenceManager] ERROR: Failed to save zones: \(error.localizedDescription)")
         }
     }
 
@@ -317,6 +400,12 @@ extension GeofenceManager: CLLocationManagerDelegate {
         print("[GeofenceManager] Entered zone: \(zone.name)")
         currentZone = zone
 
+        // Apply debouncing to prevent rapid toggling at boundaries
+        guard shouldTriggerAction() else {
+            print("[GeofenceManager] Entry action debounced for \(zone.name)")
+            return
+        }
+
         switch zone.action {
         case .homeMode, .stopOnEnter:
             sendNotification(title: "📍 Arrived at \(zone.name)", body: "Stopping location tracking...")
@@ -335,6 +424,12 @@ extension GeofenceManager: CLLocationManagerDelegate {
         print("[GeofenceManager] Exited zone: \(zone.name)")
         currentZone = nil
 
+        // Apply debouncing to prevent rapid toggling at boundaries
+        guard shouldTriggerAction() else {
+            print("[GeofenceManager] Exit action debounced for \(zone.name)")
+            return
+        }
+
         switch zone.action {
         case .homeMode, .startOnExit:
             sendNotification(title: "📍 Left \(zone.name)", body: "Starting location tracking...")
@@ -352,15 +447,28 @@ extension GeofenceManager: CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
-        guard let zone = zones.first(where: { $0.id.uuidString == region.identifier }) else { return }
+        guard let zone = zones.first(where: { $0.id.uuidString == region.identifier }) else {
+            // Notify completion if this was the last pending state check
+            decrementPendingStateChecks()
+            return
+        }
 
         let stateString = state == .inside ? "INSIDE" : (state == .outside ? "OUTSIDE" : "UNKNOWN")
         print("[GeofenceManager] State check: \(zone.name) = \(stateString)")
+
+        // Track this for state check completion callback
+        decrementPendingStateChecks()
 
         // If user is currently inside the zone, trigger the "enter" action
         if state == .inside {
             print("[GeofenceManager] User is inside \(zone.name) - triggering enter action")
             currentZone = zone
+
+            // Apply debouncing to prevent rapid toggling
+            guard shouldTriggerAction() else {
+                print("[GeofenceManager] State action debounced for \(zone.name)")
+                return
+            }
 
             switch zone.action {
             case .homeMode, .stopOnEnter:

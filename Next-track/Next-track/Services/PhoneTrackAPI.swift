@@ -174,12 +174,6 @@ class PhoneTrackAPI: ObservableObject {
             return
         }
 
-        // Create a test location (0,0 won't be displayed but validates the endpoint)
-        let testLocation = LocationData(
-            from: CLLocation(latitude: 0, longitude: 0),
-            batteryLevel: nil
-        )
-
         guard let url = URL(string: config.loggingURL) else {
             completion(false, "Invalid server URL")
             return
@@ -211,16 +205,31 @@ class PhoneTrackAPI: ObservableObject {
 
     // MARK: - Retry Pending Locations
 
-    func sendPendingLocations() {
+    /// Send all pending locations with completion tracking
+    /// - Parameter completion: Called when all pending sends complete (or queue is empty)
+    func sendPendingLocations(completion: (() -> Void)? = nil) {
         let queue = PendingLocationQueue.shared
         let settings = SettingsManager.shared.trackingSettings
 
-        guard !queue.isEmpty else { return }
+        guard !queue.isEmpty else {
+            completion?()
+            return
+        }
 
         // Remove locations that exceeded retry limit
         queue.removeExceedingRetries(maxRetries: settings.maxRetryAttempts)
 
-        for pending in queue.getAll() {
+        let pendingItems = queue.getAll()
+        guard !pendingItems.isEmpty else {
+            completion?()
+            return
+        }
+
+        // Track completion of all requests
+        let dispatchGroup = DispatchGroup()
+
+        for pending in pendingItems {
+            dispatchGroup.enter()
             sendLocationData(pending.locationData) { result in
                 switch result {
                 case .success:
@@ -230,7 +239,14 @@ class PhoneTrackAPI: ObservableObject {
                     queue.incrementRetry(id: pending.id)
                     SettingsManager.shared.recordFailedSend()
                 }
+                dispatchGroup.leave()
             }
+        }
+
+        // Notify when all requests complete
+        dispatchGroup.notify(queue: .main) {
+            print("[PhoneTrackAPI] All pending locations processed")
+            completion?()
         }
     }
 

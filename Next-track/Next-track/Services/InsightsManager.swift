@@ -127,7 +127,7 @@ class InsightsManager: ObservableObject {
         let sessionHighlight: SessionHighlight? = longestSession.map { session in
             SessionHighlight(
                 sessionId: session.id,
-                name: session.name ?? "Session",
+                name: session.name,
                 distance: session.totalDistance,
                 duration: session.duration,
                 date: session.startTime
