@@ -23,6 +23,7 @@ struct MainView: View {
     @StateObject private var cityTracker = CityTracker.shared
     @StateObject private var placeManager = PlaceDetectionManager.shared
     @StateObject private var insightsManager = InsightsManager.shared
+    @StateObject private var countriesManager = CountriesManager.shared
 
     @State private var selectedTab = AppTab.centerIndex  // Start on Track tab (index 3)
     @State private var isTracking = false
@@ -47,6 +48,8 @@ struct MainView: View {
                     PlacesView()
                 case AppTab.track.rawValue:
                     homeTab
+                case AppTab.countries.rawValue:
+                    CountriesView()
                 case AppTab.insights.rawValue:
                     InsightsView()
                 case AppTab.settings.rawValue:
@@ -159,7 +162,7 @@ struct MainView: View {
 
                         // Bottom controls (button + stats)
                         trackingOverlay
-                            .padding(.bottom, 80)  // Account for custom tab bar height
+                            .padding(.bottom, 110)  // Account for custom tab bar height
                     }
                 }
             }
@@ -229,6 +232,13 @@ struct MainView: View {
                         BatterySettingsView()
                     } label: {
                         Label("Battery Optimization", systemImage: "battery.75percent")
+                    }
+                    .hapticOnTap()
+
+                    NavigationLink {
+                        TrackAppearanceSettingsView()
+                    } label: {
+                        Label("Track Appearance", systemImage: "paintbrush")
                     }
                     .hapticOnTap()
                 }
@@ -1126,6 +1136,155 @@ struct DataSettingsView: View {
             }
         }
         .navigationTitle("Data Options")
+        .onAppear {
+            trackingSettings = settingsManager.trackingSettings
+        }
+        .onDisappear {
+            settingsManager.updateTrackingSettings(trackingSettings)
+        }
+    }
+}
+
+// MARK: - Track Appearance Settings View
+
+struct TrackAppearanceSettingsView: View {
+    @EnvironmentObject var settingsManager: SettingsManager
+    @State private var trackingSettings = TrackingSettings.default
+
+    // Helper to convert TrackColorOption to SwiftUI Color
+    private func colorFor(_ option: TrackColorOption) -> Color {
+        let c = option.color
+        return Color(red: c.red, green: c.green, blue: c.blue)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Color", selection: $trackingSettings.trackAppearance.todayColor) {
+                    ForEach(TrackColorOption.allCases, id: \.self) { color in
+                        HStack {
+                            Circle()
+                                .fill(colorFor(color))
+                                .frame(width: 20, height: 20)
+                            Text(color.rawValue)
+                        }
+                        .tag(color)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.todayColor) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+
+                Picker("Width", selection: $trackingSettings.trackAppearance.todayWidth) {
+                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                        Text(width.displayName).tag(width)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.todayWidth) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+            } header: {
+                Text("Today's Track")
+            } footer: {
+                Text("Current and today's completed tracking sessions")
+            }
+
+            Section {
+                Picker("Color", selection: $trackingSettings.trackAppearance.lastWeekColor) {
+                    ForEach(TrackColorOption.allCases, id: \.self) { color in
+                        HStack {
+                            Circle()
+                                .fill(colorFor(color))
+                                .frame(width: 20, height: 20)
+                            Text(color.rawValue)
+                        }
+                        .tag(color)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.lastWeekColor) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+
+                Picker("Width", selection: $trackingSettings.trackAppearance.lastWeekWidth) {
+                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                        Text(width.displayName).tag(width)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.lastWeekWidth) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+            } header: {
+                Text("Last Week's Tracks")
+            } footer: {
+                Text("Sessions from the past 7 days (excluding today)")
+            }
+
+            Section {
+                Picker("Color", selection: $trackingSettings.trackAppearance.olderColor) {
+                    ForEach(TrackColorOption.allCases, id: \.self) { color in
+                        HStack {
+                            Circle()
+                                .fill(colorFor(color))
+                                .frame(width: 20, height: 20)
+                            Text(color.rawValue)
+                        }
+                        .tag(color)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.olderColor) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+
+                Picker("Width", selection: $trackingSettings.trackAppearance.olderWidth) {
+                    ForEach(TrackWidthOption.allCases, id: \.self) { width in
+                        Text(width.displayName).tag(width)
+                    }
+                }
+                .onChange(of: trackingSettings.trackAppearance.olderWidth) { _, _ in
+                    HapticManager.shared.selectionChanged()
+                }
+            } header: {
+                Text("Older Tracks")
+            } footer: {
+                Text("Sessions older than 7 days")
+            }
+
+            Section {
+                // Preview of track colors
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(colorFor(trackingSettings.trackAppearance.todayColor))
+                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.todayWidth.rawValue))
+                        Text("Today")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(colorFor(trackingSettings.trackAppearance.lastWeekColor).opacity(0.7))
+                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.lastWeekWidth.rawValue))
+                        Text("Last Week")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(colorFor(trackingSettings.trackAppearance.olderColor).opacity(0.5))
+                            .frame(width: 40, height: CGFloat(trackingSettings.trackAppearance.olderWidth.rawValue))
+                        Text("Older")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 8)
+            } header: {
+                Text("Preview")
+            }
+        }
+        .navigationTitle("Track Appearance")
         .onAppear {
             trackingSettings = settingsManager.trackingSettings
         }

@@ -12,46 +12,24 @@ import CoreLocation
 struct MapPreviewView: View {
     let location: CLLocation?
     let sessionLocations: [StoredLocation]  // Current session track
-    let historicalSessions: [TrackingSession]  // Past sessions
+    let historicalSessions: [TrackingSession]  // Past sessions (not used in Track tab preview)
     @Binding var position: MapCameraPosition  // Map camera position
 
     @State private var mapId = UUID()  // Force map refresh
 
-    // Filter to only sessions that have actual location data
-    private var sessionsWithLocations: [TrackingSession] {
-        historicalSessions.filter { !$0.locations.isEmpty }
+    // Get track appearance settings
+    private var trackAppearance: TrackAppearanceSettings {
+        TrackingSettings.load().trackAppearance
     }
 
-    // Get the best locations to display on map
-    private var displayLocations: [StoredLocation] {
-        // Prefer current session, fall back to most recent historical session with locations
-        if !sessionLocations.isEmpty {
-            return sessionLocations
-        } else if let mostRecent = sessionsWithLocations.first {
-            return mostRecent.locations
-        }
-        return []
+    // Get today's color as SwiftUI Color
+    private var todayTrackColor: Color {
+        let c = trackAppearance.todayColor.color
+        return Color(red: c.red, green: c.green, blue: c.blue)
     }
 
     var body: some View {
         Map(position: $position) {
-            // Historical session paths (orange, behind current)
-            ForEach(sessionsWithLocations.prefix(5)) { session in
-                if session.locations.count > 1 {
-                    MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                        .stroke(Color.orange.opacity(0.6), lineWidth: 3)
-                }
-
-                // Show start marker for each historical session
-                if let first = session.locations.first {
-                    Annotation("", coordinate: first.coordinate) {
-                        Circle()
-                            .fill(Color.orange)
-                            .frame(width: 8, height: 8)
-                    }
-                }
-            }
-
             // Current location marker
             if let loc = location {
                 Annotation("Current", coordinate: loc.coordinate) {
@@ -74,28 +52,18 @@ struct MapPreviewView: View {
                     .stroke(Color.blue.opacity(0.3), lineWidth: 1)
             }
 
-            // Current session track path (blue, on top)
+            // Current session track path only (today's track)
             if sessionLocations.count > 1 {
                 let coordinates = sessionLocations.map { $0.coordinate }
                 MapPolyline(coordinates: coordinates)
-                    .stroke(Color.blue, lineWidth: 4)
+                    .stroke(todayTrackColor, lineWidth: CGFloat(trackAppearance.todayWidth.rawValue))
             }
 
-            // Start point marker for current or most recent session
-            if let first = displayLocations.first {
+            // Start point marker for current session
+            if let first = sessionLocations.first {
                 Annotation("Start", coordinate: first.coordinate) {
                     Image(systemName: "flag.fill")
                         .foregroundColor(.green)
-                        .font(.title3)
-                }
-            }
-
-            // End point marker if session has ended
-            if sessionLocations.isEmpty, let lastSession = sessionsWithLocations.first,
-               let last = lastSession.locations.last {
-                Annotation("End", coordinate: last.coordinate) {
-                    Image(systemName: "flag.checkered")
-                        .foregroundColor(.red)
                         .font(.title3)
                 }
             }
@@ -105,21 +73,7 @@ struct MapPreviewView: View {
         .mapControls {
             MapCompass()
         }
-        .onChange(of: historicalSessions.count) { _, _ in
-            // Force map refresh when sessions change
-            mapId = UUID()
-        }
         .onAppear {
-            // Debug logging
-            print("[MapPreview] Total sessions: \(historicalSessions.count)")
-            print("[MapPreview] Sessions with locations: \(sessionsWithLocations.count)")
-            for (i, session) in sessionsWithLocations.prefix(3).enumerated() {
-                print("[MapPreview] Session \(i): \(session.locations.count) locations, points=\(session.pointsCount)")
-                if let first = session.locations.first {
-                    print("[MapPreview]   First loc: \(first.latitude), \(first.longitude)")
-                }
-            }
-
             // Center on current location, or most recent track location
             if let loc = location {
                 position = .camera(MapCamera(
@@ -128,16 +82,13 @@ struct MapPreviewView: View {
                     heading: 0,
                     pitch: 0
                 ))
-            } else if let lastLoc = displayLocations.last {
-                print("[MapPreview] Centering on last location: \(lastLoc.latitude), \(lastLoc.longitude)")
+            } else if let lastLoc = sessionLocations.last {
                 position = .camera(MapCamera(
                     centerCoordinate: lastLoc.coordinate,
                     distance: 1000,
                     heading: 0,
                     pitch: 0
                 ))
-            } else {
-                print("[MapPreview] No locations to center on")
             }
         }
     }
@@ -160,6 +111,17 @@ struct FullMapView: View {
         case hybrid = "Hybrid"
     }
 
+    // Get track appearance settings
+    private var trackAppearance: TrackAppearanceSettings {
+        TrackingSettings.load().trackAppearance
+    }
+
+    // Helper to convert TrackColorOption to SwiftUI Color
+    private func colorFor(_ option: TrackColorOption, opacity: Double = 1.0) -> Color {
+        let c = option.color
+        return Color(red: c.red, green: c.green, blue: c.blue).opacity(opacity)
+    }
+
     // Get all locations from current session
     private var sessionLocations: [StoredLocation] {
         historyManager.currentSession?.locations ?? []
@@ -171,31 +133,60 @@ struct FullMapView: View {
         return historyManager.sessions.filter { calendar.isDateInToday($0.startTime) }
     }
 
-    // Sessions from previous days
-    private var historicalSessions: [TrackingSession] {
+    // Sessions from last week (excluding today)
+    private var lastWeekSessions: [TrackingSession] {
         let calendar = Calendar.current
-        return historyManager.sessions.filter { !calendar.isDateInToday($0.startTime) }
+        let oneWeekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        return historyManager.sessions.filter { session in
+            !calendar.isDateInToday(session.startTime) && session.startTime >= oneWeekAgo
+        }
+    }
+
+    // Sessions older than a week
+    private var olderSessions: [TrackingSession] {
+        let calendar = Calendar.current
+        let oneWeekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        return historyManager.sessions.filter { session in
+            session.startTime < oneWeekAgo
+        }
     }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(position: $position) {
-                    // Historical session paths (light green - older days)
+                    // Older session paths (oldest, at the bottom)
                     if showAllHistory {
-                        ForEach(historicalSessions) { session in
+                        ForEach(olderSessions) { session in
                             if session.locations.count > 1 {
                                 MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                                    .stroke(Color.green.opacity(0.6), lineWidth: 2)
+                                    .stroke(
+                                        colorFor(trackAppearance.olderColor, opacity: 0.5),
+                                        lineWidth: CGFloat(trackAppearance.olderWidth.rawValue)
+                                    )
+                            }
+                        }
+
+                        // Last week session paths
+                        ForEach(lastWeekSessions) { session in
+                            if session.locations.count > 1 {
+                                MapPolyline(coordinates: session.locations.map { $0.coordinate })
+                                    .stroke(
+                                        colorFor(trackAppearance.lastWeekColor, opacity: 0.7),
+                                        lineWidth: CGFloat(trackAppearance.lastWeekWidth.rawValue)
+                                    )
                             }
                         }
                     }
 
-                    // Today's completed sessions (bright red)
+                    // Today's completed sessions
                     ForEach(todaysSessions) { session in
                         if session.locations.count > 1 {
                             MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                                .stroke(Color.red, lineWidth: 3)
+                                .stroke(
+                                    colorFor(trackAppearance.todayColor),
+                                    lineWidth: CGFloat(trackAppearance.todayWidth.rawValue)
+                                )
                         }
                     }
 
@@ -221,11 +212,14 @@ struct FullMapView: View {
                             .stroke(Color.blue.opacity(0.4), lineWidth: 2)
                     }
 
-                    // Current session track path (bright red, on top)
+                    // Current session track path (today's track, on top)
                     if sessionLocations.count > 1 {
                         let coordinates = sessionLocations.map { $0.coordinate }
                         MapPolyline(coordinates: coordinates)
-                            .stroke(Color.red, lineWidth: 4)
+                            .stroke(
+                                colorFor(trackAppearance.todayColor),
+                                lineWidth: CGFloat(trackAppearance.todayWidth.rawValue)
+                            )
 
                         // Start point marker
                         if let first = sessionLocations.first {
