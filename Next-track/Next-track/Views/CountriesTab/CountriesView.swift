@@ -97,8 +97,8 @@ struct CountriesView: View {
                 AddCountrySheet()
             }
             .onAppear {
-                // Auto-import historical countries on first launch if empty
-                if countriesManager.visitedCountries.isEmpty && !hasAutoImported {
+                // Auto-import historical countries on first launch
+                if !hasAutoImported {
                     hasAutoImported = true
                     let count = countriesManager.importHistoricalCountries()
                     print("[CountriesView] Auto-imported \(count) historical countries")
