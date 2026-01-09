@@ -8,12 +8,13 @@
 import SwiftUI
 
 struct CountriesView: View {
-    @ObservedObject var countriesManager = CountriesManager.shared
+    @StateObject var countriesManager = CountriesManager.shared
 
     @State private var showMapView: Bool = true  // Default to globe view
     @State private var searchText: String = ""
     @State private var selectedSort: CountrySortOption = .recentVisit
     @State private var showAddSheet: Bool = false
+    @State private var hasAutoImported: Bool = false
 
     var filteredCountries: [VisitedCountry] {
         var countries = selectedSort.sort(countriesManager.visitedCountries)
@@ -94,6 +95,14 @@ struct CountriesView: View {
             .searchable(text: $searchText, prompt: "Search countries")
             .sheet(isPresented: $showAddSheet) {
                 AddCountrySheet()
+            }
+            .onAppear {
+                // Auto-import historical countries on first launch if empty
+                if countriesManager.visitedCountries.isEmpty && !hasAutoImported {
+                    hasAutoImported = true
+                    let count = countriesManager.importHistoricalCountries()
+                    print("[CountriesView] Auto-imported \(count) historical countries")
+                }
             }
         }
     }
