@@ -2,11 +2,13 @@
 //  ScrollableTabBar.swift
 //  Next-track
 //
-//  Custom scrollable tab bar with momentum scrolling and center-anchored Track tab
+//  Custom pill-shaped scrollable tab bar with center circle selection,
+//  haptic feedback, sound effects, and smooth animations
 //
 
 import SwiftUI
 import UIKit
+import AudioToolbox
 
 // MARK: - Tab Item Model
 
@@ -15,6 +17,29 @@ struct TabItem: Identifiable {
     let title: String
     let icon: String
     let color: Color
+    let gradientColors: [Color]
+
+    init(title: String, icon: String, color: Color, gradientColors: [Color]? = nil) {
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.gradientColors = gradientColors ?? [color, color.opacity(0.7)]
+    }
+}
+
+// MARK: - Sound Manager
+
+class TabBarSoundManager {
+    static let shared = TabBarSoundManager()
+    private init() {}
+
+    func playSelectionSound() {
+        AudioServicesPlaySystemSound(1104)
+    }
+
+    func playScrollTickSound() {
+        AudioServicesPlaySystemSound(1519)
+    }
 }
 
 // MARK: - Scrollable Tab Bar
@@ -22,205 +47,325 @@ struct TabItem: Identifiable {
 struct ScrollableTabBar: View {
     @Binding var selectedTab: Int
     let tabs: [TabItem]
-    let centerIndex: Int  // Which tab is the "home" position (Track)
+    let centerIndex: Int
 
-    @State private var scrollPosition: Int?
-    @State private var contentOffset: CGFloat = 0
-    @State private var isDragging: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
 
-    // For edge fade indicators
-    @State private var canScrollLeft: Bool = false
-    @State private var canScrollRight: Bool = false
+    private let itemSize: CGFloat = 74
+    private let circleSize: CGFloat = 74
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .ignoresSafeArea(edges: .bottom)
+                // Pill-shaped background
+                pillBackground
 
-                VStack(spacing: 0) {
-                    // Top separator line
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 0.5)
+                // Center selection circle
+                centerSelectionCircle
 
-                    // Scrollable tabs
-                    ScrollViewReader { proxy in
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 4) {
-                                // Leading spacer for centering
-                                Spacer()
-                                    .frame(width: max(0, geometry.size.width / 2 - 45))
-
-                                ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
-                                    TabButton(
-                                        tab: tab,
-                                        isSelected: selectedTab == index,
-                                        action: {
-                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                                selectedTab = index
-                                                scrollPosition = index
-                                            }
-                                        }
-                                    )
-                                    .id(index)
-                                }
-
-                                // Trailing spacer for centering
-                                Spacer()
-                                    .frame(width: max(0, geometry.size.width / 2 - 45))
-                            }
-                            .padding(.horizontal, 8)
-                            .background(
-                                GeometryReader { scrollGeometry in
-                                    Color.clear.preference(
-                                        key: ScrollOffsetPreferenceKey.self,
-                                        value: scrollGeometry.frame(in: .named("scroll")).minX
-                                    )
-                                }
-                            )
-                        }
-                        .coordinateSpace(name: "scroll")
-                        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                            contentOffset = offset
-                            updateScrollIndicators(geometry: geometry)
-                        }
-                        .scrollTargetBehavior(.viewAligned)
-                        .onAppear {
-                            // Scroll to center tab on appear
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    proxy.scrollTo(centerIndex, anchor: .center)
-                                }
-                            }
-                        }
-                        .onChange(of: selectedTab) { _, newValue in
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                proxy.scrollTo(newValue, anchor: .center)
-                            }
-                        }
-                    }
-                    .frame(height: 65)
-                }
-
-                // Edge fade indicators
-                HStack {
-                    // Left fade
-                    if canScrollLeft {
-                        LinearGradient(
-                            colors: [
-                                Color(UIColor.systemBackground),
-                                Color(UIColor.systemBackground).opacity(0)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: 25)
-                        .overlay(alignment: .leading) {
-                            EdgeIndicator(direction: .leading)
-                                .padding(.leading, 4)
-                        }
-                        .allowsHitTesting(false)
-                    }
-
-                    Spacer()
-
-                    // Right fade
-                    if canScrollRight {
-                        LinearGradient(
-                            colors: [
-                                Color(UIColor.systemBackground).opacity(0),
-                                Color(UIColor.systemBackground)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: 25)
-                        .overlay(alignment: .trailing) {
-                            EdgeIndicator(direction: .trailing)
-                                .padding(.trailing, 4)
-                        }
-                        .allowsHitTesting(false)
-                    }
-                }
-                .padding(.top, 0.5)  // Account for separator
+                // Tab picker using native Picker for reliability
+                TabPicker(
+                    selectedIndex: $selectedTab,
+                    tabs: tabs,
+                    itemSize: itemSize,
+                    containerWidth: geometry.size.width
+                )
             }
         }
-        .frame(height: 65)
+        .frame(height: 75)
+        .padding(.horizontal, 8)
+        .offset(y: 10)
+        .ignoresSafeArea(edges: .bottom)
     }
 
-    private func updateScrollIndicators(geometry: GeometryProxy) {
-        let screenWidth = geometry.size.width
-        let tabWidth: CGFloat = 76  // Tab width + spacing
-        let totalContentWidth = CGFloat(tabs.count) * tabWidth + screenWidth - 90
+    // MARK: - Pill Background
 
-        // Check if we can scroll in either direction
-        canScrollLeft = contentOffset < -10
-        canScrollRight = contentOffset > -(totalContentWidth - screenWidth - 10)
-    }
-}
+    private var pillBackground: some View {
+        ZStack {
+            Capsule()
+                .fill(colorScheme == .dark ? Color(white: 0.06) : Color(white: 0.93))
 
-// MARK: - Tab Button
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            tabs[selectedTab].color.opacity(colorScheme == .dark ? 0.15 : 0.1),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
 
-struct TabButton: View {
-    let tab: TabItem
-    let isSelected: Bool
-    let action: () -> Void
+            Capsule()
+                .fill(.ultraThinMaterial)
 
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: isSelected ? 22 : 18, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? tab.color : .gray)
-                    .frame(height: 24)
-
-                Text(tab.title)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? tab.color : .gray)
-                    .lineLimit(1)
-            }
-            .frame(width: 72, height: 52)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? tab.color.opacity(0.12) : Color.clear)
-            )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            tabs[selectedTab].color.opacity(0.5),
+                            tabs[selectedTab].color.opacity(0.1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1.5
+                )
         }
-        .buttonStyle(PlainButtonStyle())
+        .shadow(color: tabs[selectedTab].color.opacity(0.35), radius: 12, x: 0, y: 5)
+        .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+        .animation(.easeInOut(duration: 0.25), value: selectedTab)
+    }
+
+    // MARK: - Center Selection Circle
+
+    private var centerSelectionCircle: some View {
+        ZStack {
+            Circle()
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            tabs[selectedTab].color,
+                            tabs[selectedTab].color.opacity(0.6),
+                            tabs[selectedTab].color.opacity(0.3),
+                            tabs[selectedTab].color.opacity(0.6),
+                            tabs[selectedTab].color
+                        ],
+                        center: .center
+                    ),
+                    lineWidth: 3
+                )
+                .frame(width: circleSize, height: circleSize)
+                .shadow(color: tabs[selectedTab].color.opacity(0.7), radius: 8)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            tabs[selectedTab].color.opacity(0.2),
+                            tabs[selectedTab].color.opacity(0.05),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 5,
+                        endRadius: circleSize / 2
+                    )
+                )
+                .frame(width: circleSize - 4, height: circleSize - 4)
+        }
+        .animation(.easeInOut(duration: 0.25), value: selectedTab)
     }
 }
 
-// MARK: - Edge Indicator
+// MARK: - Tab Picker (UIKit-based for reliability)
 
-struct EdgeIndicator: View {
-    let direction: HorizontalEdge
+struct TabPicker: UIViewRepresentable {
+    @Binding var selectedIndex: Int
+    let tabs: [TabItem]
+    let itemSize: CGFloat
+    let containerWidth: CGFloat
 
-    @State private var isAnimating = false
-
-    var body: some View {
-        Image(systemName: direction == .leading ? "chevron.left" : "chevron.right")
-            .font(.system(size: 10, weight: .bold))
-            .foregroundColor(.gray.opacity(0.5))
-            .offset(x: isAnimating ? (direction == .leading ? -2 : 2) : 0)
-            .animation(
-                Animation.easeInOut(duration: 0.7)
-                    .repeatForever(autoreverses: true),
-                value: isAnimating
-            )
-            .onAppear { isAnimating = true }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
     }
-}
 
-// MARK: - Scroll Offset Preference Key
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.decelerationRate = .fast
+        scrollView.delegate = context.coordinator
 
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+        let stackView = UIStackView()
+        stackView.axis = .horizontal
+        stackView.spacing = 0
+        stackView.distribution = .fillEqually
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        for (index, tab) in tabs.enumerated() {
+            let tabView = createTabView(tab: tab, index: index, isSelected: index == selectedIndex, context: context)
+            stackView.addArrangedSubview(tabView)
+        }
+
+        scrollView.addSubview(stackView)
+
+        let sidePadding = (containerWidth - itemSize) / 2
+
+        NSLayoutConstraint.activate([
+            stackView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            stackView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: sidePadding),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -sidePadding),
+            stackView.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
+        ])
+
+        context.coordinator.scrollView = scrollView
+        context.coordinator.stackView = stackView
+        context.coordinator.itemSize = itemSize
+
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        // Update tab appearances
+        if let stackView = context.coordinator.stackView {
+            for (index, view) in stackView.arrangedSubviews.enumerated() {
+                updateTabAppearance(view: view, tab: tabs[index], isSelected: index == selectedIndex)
+            }
+        }
+
+        // Scroll to selected tab if changed externally
+        if !context.coordinator.isScrolling {
+            let targetOffset = CGFloat(selectedIndex) * itemSize
+            if abs(scrollView.contentOffset.x - targetOffset) > 1 {
+                scrollView.setContentOffset(CGPoint(x: targetOffset, y: 0), animated: true)
+            }
+        }
+    }
+
+    private func createTabView(tab: TabItem, index: Int, isSelected: Bool, context: Context) -> UIView {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.tag = index
+
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.alignment = .center
+        stackView.spacing = 3
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.tintColor = isSelected ? UIColor(tab.color) : .gray
+        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
+            pointSize: isSelected ? 26 : 27,  // Inactive icons 50% larger (18 -> 27)
+            weight: isSelected ? .bold : .medium
+        )
+        imageView.image = UIImage(systemName: tab.icon)
+        imageView.tag = 100
+
+        let label = UILabel()
+        label.text = tab.title
+        label.font = .systemFont(ofSize: isSelected ? 11 : 10, weight: isSelected ? .bold : .medium)
+        label.textColor = isSelected ? UIColor(tab.color) : .gray
+        label.tag = 101
+
+        stackView.addArrangedSubview(imageView)
+        stackView.addArrangedSubview(label)
+
+        container.addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: itemSize),
+            stackView.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tabTapped(_:)))
+        container.addGestureRecognizer(tapGesture)
+
+        let scale: CGFloat = isSelected ? 1.1 : 1.0  // No shrinking for inactive
+        let alpha: CGFloat = isSelected ? 1.0 : 0.7  // More visible when inactive
+        container.transform = CGAffineTransform(scaleX: scale, y: scale)
+        container.alpha = alpha
+
+        return container
+    }
+
+    private func updateTabAppearance(view: UIView, tab: TabItem, isSelected: Bool) {
+        UIView.animate(withDuration: 0.25, delay: 0, options: .curveEaseInOut) {
+            let scale: CGFloat = isSelected ? 1.1 : 1.0  // No shrinking for inactive
+            view.transform = CGAffineTransform(scaleX: scale, y: scale)
+            view.alpha = isSelected ? 1.0 : 0.7  // More visible when inactive
+
+            if let imageView = view.viewWithTag(100) as? UIImageView {
+                imageView.tintColor = isSelected ? UIColor(tab.color) : .gray
+                imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
+                    pointSize: isSelected ? 26 : 27,  // Inactive icons 50% larger (18 -> 27)
+                    weight: isSelected ? .bold : .medium
+                )
+                imageView.image = UIImage(systemName: tab.icon)
+            }
+
+            if let label = view.viewWithTag(101) as? UILabel {
+                label.textColor = isSelected ? UIColor(tab.color) : .gray
+                label.font = .systemFont(ofSize: isSelected ? 11 : 10, weight: isSelected ? .bold : .medium)
+            }
+        }
+    }
+
+    class Coordinator: NSObject, UIScrollViewDelegate {
+        var parent: TabPicker
+        var scrollView: UIScrollView?
+        var stackView: UIStackView?
+        var itemSize: CGFloat = 74
+        var isScrolling = false
+        var lastHapticIndex = -1
+
+        init(_ parent: TabPicker) {
+            self.parent = parent
+            self.lastHapticIndex = parent.selectedIndex
+        }
+
+        @objc func tabTapped(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view else { return }
+            let index = view.tag
+
+            parent.selectedIndex = index
+            HapticManager.shared.selectionChanged()
+            TabBarSoundManager.shared.playSelectionSound()
+
+            if let scrollView = scrollView {
+                let targetOffset = CGFloat(index) * itemSize
+                scrollView.setContentOffset(CGPoint(x: targetOffset, y: 0), animated: true)
+            }
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            isScrolling = true
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            let currentIndex = Int(round(scrollView.contentOffset.x / itemSize))
+            let clampedIndex = max(0, min(parent.tabs.count - 1, currentIndex))
+
+            // Haptic when crossing tab boundaries
+            if clampedIndex != lastHapticIndex && isScrolling {
+                lastHapticIndex = clampedIndex
+                HapticManager.shared.buttonTap()
+                TabBarSoundManager.shared.playScrollTickSound()
+            }
+        }
+
+        func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+            // Snap to nearest tab
+            let targetIndex = Int(round(targetContentOffset.pointee.x / itemSize))
+            let clampedIndex = max(0, min(parent.tabs.count - 1, targetIndex))
+            targetContentOffset.pointee.x = CGFloat(clampedIndex) * itemSize
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate {
+                snapToNearestTab(scrollView)
+            }
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            snapToNearestTab(scrollView)
+        }
+
+        private func snapToNearestTab(_ scrollView: UIScrollView) {
+            isScrolling = false
+            let currentIndex = Int(round(scrollView.contentOffset.x / itemSize))
+            let clampedIndex = max(0, min(parent.tabs.count - 1, currentIndex))
+
+            if clampedIndex != parent.selectedIndex {
+                parent.selectedIndex = clampedIndex
+                HapticManager.shared.selectionChanged()
+                TabBarSoundManager.shared.playSelectionSound()
+            }
+        }
     }
 }
 
@@ -231,33 +376,31 @@ enum AppTab: Int, CaseIterable {
     case cities = 1
     case places = 2
     case track = 3
-    case insights = 4
-    case settings = 5
+    case countries = 4
+    case insights = 5
+    case settings = 6
 
     var tabItem: TabItem {
         switch self {
         case .stats:
-            return TabItem(title: "Stats", icon: "chart.bar.fill", color: .blue)
+            return TabItem(title: "Stats", icon: "chart.bar.fill", color: .blue, gradientColors: [.blue, .cyan])
         case .cities:
-            return TabItem(title: "Cities", icon: "building.2.fill", color: .purple)
+            return TabItem(title: "Cities", icon: "building.2.fill", color: .purple, gradientColors: [.purple, .indigo])
         case .places:
-            return TabItem(title: "Places", icon: "mappin.circle.fill", color: .orange)
+            return TabItem(title: "Places", icon: "mappin.circle.fill", color: .orange, gradientColors: [.orange, .yellow])
         case .track:
-            return TabItem(title: "Track", icon: "location.fill", color: .green)
+            return TabItem(title: "Track", icon: "location.fill", color: .green, gradientColors: [.green, .mint])
+        case .countries:
+            return TabItem(title: "Countries", icon: "globe.americas.fill", color: .teal, gradientColors: [.teal, .cyan])
         case .insights:
-            return TabItem(title: "Insights", icon: "chart.pie.fill", color: .pink)
+            return TabItem(title: "Insights", icon: "chart.pie.fill", color: .pink, gradientColors: [.pink, .red])
         case .settings:
-            return TabItem(title: "Settings", icon: "gearshape.fill", color: .gray)
+            return TabItem(title: "Settings", icon: "gearshape.fill", color: Color(white: 0.5), gradientColors: [Color(white: 0.5), Color(white: 0.7)])
         }
     }
 
-    static var allTabs: [TabItem] {
-        allCases.map { $0.tabItem }
-    }
-
-    static var centerIndex: Int {
-        AppTab.track.rawValue  // Track is at index 3
-    }
+    static var allTabs: [TabItem] { allCases.map { $0.tabItem } }
+    static var centerIndex: Int { AppTab.track.rawValue }
 }
 
 // MARK: - Preview
@@ -265,13 +408,20 @@ enum AppTab: Int, CaseIterable {
 #Preview {
     VStack {
         Spacer()
-        Text("Content Area")
+        Text("Content Area").foregroundStyle(.secondary)
         Spacer()
-        ScrollableTabBar(
-            selectedTab: .constant(3),
-            tabs: AppTab.allTabs,
-            centerIndex: AppTab.centerIndex
-        )
+        ScrollableTabBar(selectedTab: .constant(3), tabs: AppTab.allTabs, centerIndex: AppTab.centerIndex)
     }
     .background(Color(UIColor.systemGroupedBackground))
+}
+
+#Preview("Dark Mode") {
+    VStack {
+        Spacer()
+        Text("Content Area").foregroundStyle(.secondary)
+        Spacer()
+        ScrollableTabBar(selectedTab: .constant(3), tabs: AppTab.allTabs, centerIndex: AppTab.centerIndex)
+    }
+    .background(Color(UIColor.systemGroupedBackground))
+    .preferredColorScheme(.dark)
 }
