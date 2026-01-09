@@ -35,6 +35,12 @@ class PlaceDetectionManager: ObservableObject {
     private var geocodingQueue: [(DetectedPlace, Int)] = []  // (place, index)
     private var isGeocodingQueueProcessing = false
 
+    // Real-time place detection state
+    private var currentStationaryStart: (coordinate: CLLocationCoordinate2D, timestamp: Date)?
+    private var lastLocationTimestamp: Date?
+    private var stationaryLocationCount: Int = 0
+    private let minStationaryPoints: Int = 3  // Need 3+ stationary points to consider
+
     // MARK: - Initialization
 
     private init() {
@@ -107,23 +113,168 @@ class PlaceDetectionManager: ObservableObject {
     }
 
     /// Process a single location during active tracking
+    /// This now properly detects NEW places, not just existing ones
     func processLocation(_ location: CLLocation, timestamp: Date) {
-        guard location.speed < maxSpeed else { return }
+        let isStationary = location.speed < maxSpeed
 
-        // Check if this location is near an existing place
-        if let index = findNearestPlace(to: location.coordinate, maxDistance: gridCellSize * 1.5) {
-            // Update existing place
+        if isStationary {
+            // User is stationary
+            handleStationaryLocation(location, timestamp: timestamp)
+        } else {
+            // User is moving - check if we need to finalize a place
+            handleMovingLocation(location, timestamp: timestamp)
+        }
+
+        lastLocationTimestamp = timestamp
+    }
+
+    /// Handle stationary location - either update existing place or track potential new place
+    private func handleStationaryLocation(_ location: CLLocation, timestamp: Date) {
+        let coordinate = location.coordinate
+
+        // Check if near an existing place
+        if let index = findNearestPlace(to: coordinate, maxDistance: gridCellSize * 1.5) {
+            // At an existing place
             var place = detectedPlaces[index]
 
             // Check if this is a new visit or continuation
             if let lastVisit = place.visitHistory.last,
                lastVisit.departureTime == nil {
-                // Continuing current visit - do nothing, departure will be set when we leave
+                // Continuing current visit - nothing to do
             } else {
-                // New visit
+                // New visit to existing place
                 place.recordVisit(arrival: timestamp)
                 detectedPlaces[index] = place
                 savePlaces()
+                print("[PlaceDetection] New visit recorded at: \(place.name ?? "Unknown")")
+            }
+
+            // Clear any pending new place since we're at an existing one
+            currentStationaryStart = nil
+            stationaryLocationCount = 0
+        } else {
+            // Not at a known place - track potential new place
+            if let start = currentStationaryStart {
+                // Check if still in same area (within grid cell)
+                let startLocation = CLLocation(latitude: start.coordinate.latitude, longitude: start.coordinate.longitude)
+                let distance = location.distance(from: startLocation)
+
+                if distance < gridCellSize {
+                    // Still in same area - increment count
+                    stationaryLocationCount += 1
+
+                    // Check if we've been here long enough to create a place
+                    let dwellTime = timestamp.timeIntervalSince(start.timestamp)
+                    if dwellTime >= minDwellTime && stationaryLocationCount >= minStationaryPoints {
+                        // Create a new place!
+                        createNewPlace(at: start.coordinate, startTime: start.timestamp, currentTime: timestamp)
+                    }
+                } else {
+                    // Moved to a new area - reset tracking
+                    currentStationaryStart = (coordinate, timestamp)
+                    stationaryLocationCount = 1
+                }
+            } else {
+                // Start tracking new potential place
+                currentStationaryStart = (coordinate, timestamp)
+                stationaryLocationCount = 1
+            }
+        }
+    }
+
+    /// Handle moving location - finalize any pending place visits
+    private func handleMovingLocation(_ location: CLLocation, timestamp: Date) {
+        // Mark departure from any existing place we were at
+        if let index = findNearestPlace(to: location.coordinate, maxDistance: gridCellSize * 2) {
+            var place = detectedPlaces[index]
+            if let lastVisit = place.visitHistory.last, lastVisit.departureTime == nil {
+                place.endCurrentVisit(departure: timestamp)
+                detectedPlaces[index] = place
+                savePlaces()
+                print("[PlaceDetection] Departure recorded from: \(place.name ?? "Unknown")")
+            }
+        }
+
+        // Check if we should finalize a pending new place
+        if let start = currentStationaryStart {
+            let dwellTime = timestamp.timeIntervalSince(start.timestamp)
+            if dwellTime >= minDwellTime && stationaryLocationCount >= minStationaryPoints {
+                // Create the new place before clearing
+                createNewPlace(at: start.coordinate, startTime: start.timestamp, currentTime: timestamp)
+            }
+        }
+
+        // Clear stationary tracking
+        currentStationaryStart = nil
+        stationaryLocationCount = 0
+    }
+
+    /// Create a new detected place
+    private func createNewPlace(at coordinate: CLLocationCoordinate2D, startTime: Date, currentTime: Date) {
+        // Check we're not too close to an existing place
+        if findNearestPlace(to: coordinate, maxDistance: gridCellSize) != nil {
+            print("[PlaceDetection] Skipping new place - too close to existing")
+            return
+        }
+
+        let visit = PlaceVisit(arrivalTime: startTime, departureTime: currentTime)
+
+        let newPlace = DetectedPlace(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            radius: gridCellSize,
+            category: .other,
+            confidence: 0.5,
+            visitHistory: [visit],
+            createdAt: startTime,
+            lastVisitedAt: currentTime
+        )
+
+        DispatchQueue.main.async {
+            self.detectedPlaces.append(newPlace)
+            self.savePlaces()
+
+            // Trigger haptic
+            HapticManager.shared.success()
+
+            print("[PlaceDetection] NEW PLACE DETECTED at (\(coordinate.latitude), \(coordinate.longitude))")
+
+            // Queue for geocoding
+            self.geocodeNewPlace(at: self.detectedPlaces.count - 1)
+        }
+
+        // Clear tracking state
+        currentStationaryStart = nil
+        stationaryLocationCount = 0
+    }
+
+    /// Geocode a newly created place
+    private func geocodeNewPlace(at index: Int) {
+        guard index < detectedPlaces.count else { return }
+        let place = detectedPlaces[index]
+
+        let location = CLLocation(latitude: place.latitude, longitude: place.longitude)
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            guard let self = self, error == nil, let placemark = placemarks?.first else { return }
+
+            DispatchQueue.main.async {
+                guard index < self.detectedPlaces.count else { return }
+
+                var updatedPlace = self.detectedPlaces[index]
+                updatedPlace.name = placemark.name ?? placemark.thoroughfare ?? "Unknown Place"
+                updatedPlace.streetAddress = [placemark.subThoroughfare, placemark.thoroughfare]
+                    .compactMap { $0 }
+                    .joined(separator: " ")
+
+                // Categorize with geocoded name
+                let (category, confidence) = self.categorizePlace(updatedPlace, geocodedName: placemark.name)
+                updatedPlace.category = category
+                updatedPlace.confidence = confidence
+
+                self.detectedPlaces[index] = updatedPlace
+                self.savePlaces()
+
+                print("[PlaceDetection] Geocoded new place: \(updatedPlace.name ?? "Unknown")")
             }
         }
     }
@@ -136,6 +287,14 @@ class PlaceDetectionManager: ObservableObject {
             detectedPlaces[index] = place
             savePlaces()
         }
+    }
+
+    /// Reset real-time tracking state (call when tracking starts)
+    func resetTrackingState() {
+        currentStationaryStart = nil
+        lastLocationTimestamp = nil
+        stationaryLocationCount = 0
+        print("[PlaceDetection] Tracking state reset")
     }
 
     /// Get places sorted by option
