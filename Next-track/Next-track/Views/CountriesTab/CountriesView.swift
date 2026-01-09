@@ -117,6 +117,7 @@ struct CountriesView: View {
 
 struct CountriesEmptyStateView: View {
     let onAddTapped: () -> Void
+    @State private var importedCount: Int?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -143,10 +144,31 @@ struct CountriesEmptyStateView: View {
             }
 
             VStack(spacing: 12) {
+                // Import Historical Countries - Primary action
+                Button {
+                    let count = CountriesManager.shared.importHistoricalCountries()
+                    importedCount = count
+                } label: {
+                    Label("Import Historical (11 Countries)", systemImage: "clock.arrow.circlepath")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 40)
+
                 Button {
                     onAddTapped()
                 } label: {
-                    Label("Add Country", systemImage: "plus.circle.fill")
+                    Label("Add Country Manually", systemImage: "plus.circle.fill")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -163,6 +185,12 @@ struct CountriesEmptyStateView: View {
                         .font(.subheadline)
                         .foregroundColor(.teal)
                 }
+            }
+
+            if let count = importedCount {
+                Text("Imported \(count) countries!")
+                    .font(.caption)
+                    .foregroundColor(.green)
             }
         }
         .padding()
