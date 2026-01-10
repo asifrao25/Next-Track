@@ -74,14 +74,18 @@ class PhoneTrackAPI: ObservableObject {
         let config = SettingsManager.shared.serverConfig
         let settings = SettingsManager.shared.trackingSettings
 
+        #if DEBUG
         print("[PhoneTrackAPI] Attempting to send location...")
         print("[PhoneTrackAPI] Server URL: \(config.serverURL)")
         print("[PhoneTrackAPI] Token: \(config.token.prefix(8))...")
         print("[PhoneTrackAPI] Device: \(config.deviceName)")
         print("[PhoneTrackAPI] Config valid: \(config.isValid)")
+        #endif
 
         guard config.isValid else {
+            #if DEBUG
             print("[PhoneTrackAPI] ERROR: Invalid configuration!")
+            #endif
             let result = APIResult.failure(.invalidConfiguration)
             DispatchQueue.main.async {
                 self.lastResult = result
@@ -91,10 +95,14 @@ class PhoneTrackAPI: ObservableObject {
             return
         }
 
+        #if DEBUG
         print("[PhoneTrackAPI] Logging URL base: \(config.loggingURL)")
+        #endif
 
         guard let url = locationData.buildURL(baseURL: config.loggingURL, settings: settings) else {
+            #if DEBUG
             print("[PhoneTrackAPI] ERROR: Failed to build URL!")
+            #endif
             let result = APIResult.failure(.invalidURL)
             DispatchQueue.main.async {
                 self.lastResult = result
@@ -104,7 +112,9 @@ class PhoneTrackAPI: ObservableObject {
             return
         }
 
+        #if DEBUG
         print("[PhoneTrackAPI] Full URL: \(url.absoluteString)")
+        #endif
 
         DispatchQueue.main.async {
             self.isSending = true
@@ -125,7 +135,9 @@ class PhoneTrackAPI: ObservableObject {
                 self?.isSending = false
 
                 if let error = error {
+                    #if DEBUG
                     print("[PhoneTrackAPI] Network error: \(error.localizedDescription)")
+                    #endif
                     let result = APIResult.failure(.networkError(error))
                     self?.lastResult = result
                     self?.connectionStatus = .disconnected
@@ -134,9 +146,13 @@ class PhoneTrackAPI: ObservableObject {
                 }
 
                 if let httpResponse = response as? HTTPURLResponse {
+                    #if DEBUG
                     print("[PhoneTrackAPI] Response: HTTP \(httpResponse.statusCode)")
+                    #endif
                     if (200...299).contains(httpResponse.statusCode) {
+                        #if DEBUG
                         print("[PhoneTrackAPI] ✅ SUCCESS - Location sent!")
+                        #endif
 
                         // Record latency on successful requests
                         ConnectionMonitor.shared.recordLatency(latencyMs)
@@ -146,7 +162,9 @@ class PhoneTrackAPI: ObservableObject {
                         self?.connectionStatus = .connected
                         completion(result)
                     } else {
+                        #if DEBUG
                         print("[PhoneTrackAPI] ❌ Server error: \(httpResponse.statusCode)")
+                        #endif
                         let result = APIResult.failure(.serverError(httpResponse.statusCode))
                         self?.lastResult = result
                         self?.connectionStatus = .error

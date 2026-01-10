@@ -14,7 +14,14 @@ struct NextTrackApp: App {
     @StateObject private var phoneTrackAPI = PhoneTrackAPI.shared
     @StateObject private var geofenceManager = GeofenceManager.shared
     @StateObject private var historyManager = TrackingHistoryManager.shared
+    @StateObject private var errorStateManager = ErrorStateManager.shared
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Whether the user has completed onboarding
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
+    /// Whether to show the splash screen
+    @State private var showSplash = true
 
     init() {
         // Register background tasks
@@ -24,19 +31,50 @@ struct NextTrackApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
-                .environmentObject(locationManager)
-                .environmentObject(settingsManager)
-                .environmentObject(phoneTrackAPI)
-                .environmentObject(geofenceManager)
-                .environmentObject(historyManager)
-                .onAppear {
-                    // Request location permissions on first launch
-                    locationManager.requestPermissions()
+            ZStack {
+                // Main content (loads in background while splash shows)
+                Group {
+                    if hasCompletedOnboarding {
+                        MainView()
+                            .environmentObject(locationManager)
+                            .environmentObject(settingsManager)
+                            .environmentObject(phoneTrackAPI)
+                            .environmentObject(geofenceManager)
+                            .environmentObject(historyManager)
+                            .environmentObject(errorStateManager)
+                            .withErrorBanner()
+                            .onAppear {
+                                // Request location permissions if not already granted
+                                if !locationManager.hasAnyPermission {
+                                    locationManager.requestPermissions()
+                                }
+                            }
+                            .onChange(of: scenePhase) { oldPhase, newPhase in
+                                handleScenePhaseChange(newPhase)
+                            }
+                    } else {
+                        OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
+                            .environmentObject(locationManager)
+                            .environmentObject(settingsManager)
+                    }
                 }
-                .onChange(of: scenePhase) { oldPhase, newPhase in
-                    handleScenePhaseChange(newPhase)
+                .opacity(showSplash ? 0 : 1)
+
+                // Splash screen overlay
+                if showSplash {
+                    SplashScreenView()
+                        .transition(.opacity)
+                        .zIndex(1)
                 }
+            }
+            .onAppear {
+                // Dismiss splash after 4 seconds (video fades out mid-playback)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        showSplash = false
+                    }
+                }
+            }
         }
     }
 

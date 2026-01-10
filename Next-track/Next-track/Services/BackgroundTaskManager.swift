@@ -26,7 +26,12 @@ class BackgroundTaskManager {
             forTaskWithIdentifier: refreshTaskIdentifier,
             using: nil
         ) { task in
-            self.handleAppRefresh(task: task as! BGAppRefreshTask)
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                print("[BackgroundTaskManager] Unexpected task type for app refresh")
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleAppRefresh(task: refreshTask)
         }
 
         // Register background processing
@@ -34,13 +39,20 @@ class BackgroundTaskManager {
             forTaskWithIdentifier: processingTaskIdentifier,
             using: nil
         ) { task in
-            self.handleBackgroundProcessing(task: task as! BGProcessingTask)
+            guard let processingTask = task as? BGProcessingTask else {
+                print("[BackgroundTaskManager] Unexpected task type for processing")
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleBackgroundProcessing(task: processingTask)
         }
 
         // Register auto-export task
         AutoExportManager.shared.registerBackgroundTask()
 
+        #if DEBUG
         print("[BackgroundTaskManager] Registered background tasks")
+        #endif
     }
 
     // MARK: - Scheduling
@@ -51,9 +63,13 @@ class BackgroundTaskManager {
 
         do {
             try BGTaskScheduler.shared.submit(request)
+            #if DEBUG
             print("[BackgroundTaskManager] Scheduled app refresh")
+            #endif
         } catch {
+            #if DEBUG
             print("[BackgroundTaskManager] Failed to schedule app refresh: \(error)")
+            #endif
         }
     }
 

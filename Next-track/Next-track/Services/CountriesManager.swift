@@ -88,11 +88,11 @@ class CountriesManager: ObservableObject {
 
                 // Update dates if auto-detected dates are earlier/later
                 if let first = firstVisit,
-                   updated.firstVisitDate == nil || first < updated.firstVisitDate! {
+                   first < (updated.firstVisitDate ?? Date.distantFuture) {
                     updated.firstVisitDate = first
                 }
                 if let last = lastVisit,
-                   updated.lastVisitDate == nil || last > updated.lastVisitDate! {
+                   last > (updated.lastVisitDate ?? Date.distantPast) {
                     updated.lastVisitDate = last
                 }
                 updated.updatedAt = Date()
@@ -135,10 +135,10 @@ class CountriesManager: ObservableObject {
 
             // Update dates
             if let tripDate = trip.effectiveDate {
-                if updated.firstVisitDate == nil || tripDate < updated.firstVisitDate! {
+                if tripDate < (updated.firstVisitDate ?? Date.distantFuture) {
                     updated.firstVisitDate = tripDate
                 }
-                if updated.lastVisitDate == nil || tripDate > updated.lastVisitDate! {
+                if tripDate > (updated.lastVisitDate ?? Date.distantPast) {
                     updated.lastVisitDate = tripDate
                 }
             }
@@ -175,10 +175,10 @@ class CountriesManager: ObservableObject {
 
         // Update dates
         if let tripDate = trip.effectiveDate {
-            if updated.firstVisitDate == nil || tripDate < updated.firstVisitDate! {
+            if tripDate < (updated.firstVisitDate ?? Date.distantFuture) {
                 updated.firstVisitDate = tripDate
             }
-            if updated.lastVisitDate == nil || tripDate > updated.lastVisitDate! {
+            if tripDate > (updated.lastVisitDate ?? Date.distantPast) {
                 updated.lastVisitDate = tripDate
             }
         }
@@ -283,10 +283,10 @@ class CountriesManager: ObservableObject {
         country.totalTimeSpent = calculateTotalTime(sessions: country.visitSessions)
 
         // Update first/last visit dates
-        if country.firstVisitDate == nil || entryDate < country.firstVisitDate! {
+        if entryDate < (country.firstVisitDate ?? Date.distantFuture) {
             country.firstVisitDate = entryDate
         }
-        if country.lastVisitDate == nil || exitDate > country.lastVisitDate! {
+        if exitDate > (country.lastVisitDate ?? Date.distantPast) {
             country.lastVisitDate = exitDate
         }
 

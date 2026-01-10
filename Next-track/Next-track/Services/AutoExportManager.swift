@@ -148,7 +148,12 @@ class AutoExportManager: ObservableObject {
             forTaskWithIdentifier: Self.taskIdentifier,
             using: nil
         ) { [weak self] task in
-            self?.handleBackgroundTask(task as! BGProcessingTask)
+            guard let self = self, let processingTask = task as? BGProcessingTask else {
+                print("[AutoExport] Unexpected task type or self is nil")
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleBackgroundTask(processingTask)
         }
         print("[AutoExport] Registered background task")
 

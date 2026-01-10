@@ -2,180 +2,12 @@
 //  CustomTitleHeaderView.swift
 //  Next-track
 //
-//  Custom app title header with animated status indicator and latency display
+//  Dynamic header with image banner and live tracking stats
 //
 
 import SwiftUI
 
-// MARK: - Techy Status Indicator (Radar-style with radiating rings)
-
-struct PulsingStatusIndicator: View {
-    enum Status {
-        case active      // Green radiating - tracking active and connected
-        case paused      // Static gray - tracking paused
-        case warning     // Orange radiating - issues detected
-    }
-
-    let status: Status
-    let size: CGFloat
-
-    @State private var ring1Scale: CGFloat = 0.5
-    @State private var ring2Scale: CGFloat = 0.5
-    @State private var ring3Scale: CGFloat = 0.5
-    @State private var ring1Opacity: Double = 0.8
-    @State private var ring2Opacity: Double = 0.8
-    @State private var ring3Opacity: Double = 0.8
-    @State private var isAnimating = false
-
-    init(status: Status, size: CGFloat = 10) {
-        self.status = status
-        self.size = size
-    }
-
-    var body: some View {
-        ZStack {
-            // Outer radiating rings (only when active/warning)
-            if shouldAnimate {
-                // Ring 3 (outermost)
-                Circle()
-                    .stroke(statusColor.opacity(ring3Opacity), lineWidth: 1)
-                    .frame(width: size * ring3Scale, height: size * ring3Scale)
-
-                // Ring 2
-                Circle()
-                    .stroke(statusColor.opacity(ring2Opacity), lineWidth: 1.5)
-                    .frame(width: size * ring2Scale, height: size * ring2Scale)
-
-                // Ring 1 (innermost ring)
-                Circle()
-                    .stroke(statusColor.opacity(ring1Opacity), lineWidth: 1.5)
-                    .frame(width: size * ring1Scale, height: size * ring1Scale)
-            }
-
-            // Center tech element - hexagonal/target style
-            ZStack {
-                // Outer hexagon frame
-                RegularPolygon(sides: 6)
-                    .stroke(statusColor.opacity(0.6), lineWidth: 1.5)
-                    .frame(width: size * 0.9, height: size * 0.9)
-
-                // Inner filled circle
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: size * 0.45, height: size * 0.45)
-
-                // Tiny center dot for tech effect
-                Circle()
-                    .fill(Color.white.opacity(0.8))
-                    .frame(width: size * 0.15, height: size * 0.15)
-            }
-        }
-        .frame(width: size * 2.5, height: size * 2.5) // Fixed frame to prevent jumping
-        .onAppear {
-            if shouldAnimate {
-                startRadiatingAnimation()
-            }
-        }
-        .onChange(of: status) { _, _ in
-            if shouldAnimate {
-                startRadiatingAnimation()
-            } else {
-                stopAnimation()
-            }
-        }
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .active:
-            return .green
-        case .paused:
-            return .gray
-        case .warning:
-            return .orange
-        }
-    }
-
-    private var shouldAnimate: Bool {
-        status != .paused
-    }
-
-    private func startRadiatingAnimation() {
-        guard !isAnimating else { return }
-        isAnimating = true
-
-        // Reset to initial state
-        ring1Scale = 0.5
-        ring2Scale = 0.5
-        ring3Scale = 0.5
-        ring1Opacity = 0.8
-        ring2Opacity = 0.8
-        ring3Opacity = 0.8
-
-        // Staggered radiating animation for each ring
-        withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
-            ring1Scale = 2.2
-            ring1Opacity = 0
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                ring2Scale = 2.2
-                ring2Opacity = 0
-            }
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                ring3Scale = 2.2
-                ring3Opacity = 0
-            }
-        }
-    }
-
-    private func stopAnimation() {
-        isAnimating = false
-        withAnimation(.easeOut(duration: 0.3)) {
-            ring1Scale = 0.5
-            ring2Scale = 0.5
-            ring3Scale = 0.5
-            ring1Opacity = 0
-            ring2Opacity = 0
-            ring3Opacity = 0
-        }
-    }
-}
-
-// MARK: - Regular Polygon Shape
-
-struct RegularPolygon: Shape {
-    let sides: Int
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radius = min(rect.width, rect.height) / 2
-        let angleStep = Double.pi * 2 / Double(sides)
-        let startAngle = -Double.pi / 2 // Start from top
-
-        for i in 0..<sides {
-            let angle = startAngle + angleStep * Double(i)
-            let point = CGPoint(
-                x: center.x + CGFloat(cos(angle)) * radius,
-                y: center.y + CGFloat(sin(angle)) * radius
-            )
-            if i == 0 {
-                path.move(to: point)
-            } else {
-                path.addLine(to: point)
-            }
-        }
-        path.closeSubpath()
-        return path
-    }
-}
-
-// MARK: - Custom Title Header View
+// MARK: - Connection Status Type
 
 enum ConnectionStatusType {
     case connected
@@ -184,260 +16,571 @@ enum ConnectionStatusType {
     case unknown
 }
 
+// MARK: - Dynamic Header View
+
 struct CustomTitleHeaderView: View {
     @ObservedObject var connectionMonitor: ConnectionMonitor
     @ObservedObject var batteryMonitor: BatteryMonitor
     let isTracking: Bool
     let hasIssues: Bool
     let pendingCount: Int
-    let currentZoneName: String?  // Zone name when inside a geofence
+    let currentZoneName: String?
     var connectionStatus: ConnectionStatusType = .unknown
     var lastSuccessfulSend: Date? = nil
+    var todayMiles: Double = 0.0
+    var sessionDuration: TimeInterval = 0
+    var pointsSent: Int = 0
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Main title card
-            VStack(spacing: 8) {
-                // App title - centered
-                HStack(spacing: 10) {
-                    // Animated status indicator
-                    PulsingStatusIndicator(status: indicatorStatus, size: 12)
+        // Unified header pill - image + stats combined
+        VStack(spacing: 0) {
+            // Top: Header image
+            Image("HeaderImage")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(height: 90)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .opacity(0.7)
 
-                    Text("Next Track")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+            // Bottom: Stats bar integrated into pill
+            HStack(spacing: 12) {
+                // Status (HOME/WORK/ACTIVE)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 6, height: 6)
+                    Text(statusText)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(statusColor)
                 }
 
-                // Status row
-                HStack(spacing: 8) {
-                    // Tracking status - dynamic based on zone
-                    HStack(spacing: 3) {
-                        Image(systemName: trackingStatusIcon)
-                            .font(.system(size: 10))
-                        Text(trackingStatusText)
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(trackingStatusColor)
+                // Divider
+                Text("•").foregroundColor(.white.opacity(0.3)).font(.system(size: 8))
 
-                    // Divider
-                    Text("|")
-                        .foregroundColor(.secondary.opacity(0.5))
-                        .font(.system(size: 10))
-
-                    // Connection + Latency combined
-                    HStack(spacing: 3) {
-                        Image(systemName: connectionIcon)
-                            .font(.system(size: 10))
-                        if let latency = connectionMonitor.averageLatency {
-                            Text("\(Int(latency))ms")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        } else {
-                            Text("--")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        }
-                    }
-                    .foregroundColor(connectionColor)
-
-                    // Divider
-                    Text("|")
-                        .foregroundColor(.secondary.opacity(0.5))
-                        .font(.system(size: 10))
-
-                    // Battery
-                    HStack(spacing: 3) {
-                        Image(systemName: batteryIcon)
-                            .font(.system(size: 10))
-                        Text("\(batteryMonitor.batteryLevel)%")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(batteryColor)
-                }
-
-                // Last sent row
+                // Last sent time
                 if let lastSent = lastSuccessfulSend {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 10))
-                        Text("Last sent:")
-                            .font(.system(size: 11))
-                        Text(lastSent, style: .relative)
-                            .font(.system(size: 11, weight: .medium))
-                        Text("ago")
-                            .font(.system(size: 11))
+                            .foregroundColor(.green.opacity(0.8))
+                        Text(formatTimeAgo(lastSent))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.8))
                     }
-                    .foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.up.circle")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text("--")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
                 }
 
-                // Pending locations indicator (if any)
-                if pendingCount > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "tray.full.fill")
-                            .font(.system(size: 10))
-                        Text("\(pendingCount) pending")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.orange)
-                    .padding(.top, 2)
+                // Divider
+                Text("•").foregroundColor(.white.opacity(0.3)).font(.system(size: 8))
+
+                // Elevation
+                HStack(spacing: 3) {
+                    Image(systemName: "mountain.2.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.cyan.opacity(0.8))
+                    Text("\(Int(todayMiles * 15))ft")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.8))
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemGray6))
-                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                // Frosted glass effect for stats area
+                Color(white: 0.05).opacity(0.9)
             )
         }
+        .clipShape(RoundedRectangle(cornerRadius: 28))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.5), .cyan.opacity(0.3), .white.opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        // Soft glow layers
+        .shadow(color: .cyan.opacity(0.4), radius: 15, x: 0, y: 0)
+        .shadow(color: .blue.opacity(0.3), radius: 25, x: 0, y: 5)
+        .shadow(color: shadowColor.opacity(0.5), radius: 20, x: 0, y: 8)
+        .padding(.horizontal, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    // MARK: - Helpers
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h\(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+
+    private func formatTimeAgo(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 60 { return "\(seconds)s ago" }
+        else if seconds < 3600 { return "\(seconds / 60)m ago" }
+        else { return "\(seconds / 3600)h ago" }
     }
 
     // MARK: - Computed Properties
 
-    private var indicatorStatus: PulsingStatusIndicator.Status {
-        if hasIssues {
-            return .warning
-        }
-        if isTracking {
-            return .active
-        }
-        return .paused
+    private var statusText: String {
+        if hasIssues { return "WARN" }
+        if isTracking { return "ACTIVE" }
+        if let zone = currentZoneName { return zone.uppercased() }
+        return "IDLE"
     }
 
-    // Dynamic tracking status based on zone
-    private var trackingStatusIcon: String {
-        if isTracking {
-            return "location.fill"
-        } else if currentZoneName != nil {
-            return "house.fill"
-        }
-        return "location.slash"
+    private var statusColor: Color {
+        if hasIssues { return .orange }
+        if isTracking { return .green }
+        if currentZoneName != nil { return .cyan }
+        return .gray
     }
 
-    private var trackingStatusText: String {
-        if isTracking {
-            return "Active"
-        } else if let zoneName = currentZoneName {
-            return "At \(zoneName)"
-        }
-        return "Paused"
+    private var borderGradient: LinearGradient {
+        let color: Color = hasIssues ? .orange : (isTracking ? .green : .white.opacity(0.3))
+        return LinearGradient(
+            colors: [color.opacity(0.8), color.opacity(0.3), color.opacity(0.1)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
-    private var trackingStatusColor: Color {
-        if isTracking {
-            return .green
-        } else if currentZoneName != nil {
-            return .blue
-        }
-        return .secondary
+    private var shadowColor: Color {
+        hasIssues ? .orange : (isTracking ? .green : .cyan)
     }
 
-    private var latencyColor: Color {
-        guard let latency = connectionMonitor.averageLatency else {
-            return .secondary
+    private var accessibilityDescription: String {
+        var description = "Been There. "
+        description += isTracking ? "Tracking active. " : "Tracking paused. "
+        description += String(format: "%.1f miles today. ", todayMiles)
+        if pendingCount > 0 {
+            description += "\(pendingCount) points pending. "
         }
-        switch latency {
-        case 0..<100:
-            return .green
-        case 100..<300:
-            return .yellow
-        default:
-            return .orange
+        return description
+    }
+}
+
+// MARK: - Mini Stat (Compact)
+
+struct MiniStat: View {
+    let icon: String
+    let value: String
+    let color: Color
+    var isPulsing: Bool = false
+
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(color)
+                .scaleEffect(pulse ? 1.1 : 1.0)
+
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(.white)
+        }
+        .fixedSize()
+        .onAppear {
+            if isPulsing {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Mini Last Sent
+
+struct MiniLastSent: View {
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 1) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(.green.opacity(0.6))
+
+            Text(formatTimeAgo(date))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.5))
+        }
+        .fixedSize()
+    }
+
+    private func formatTimeAgo(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 60 { return "\(seconds)s" }
+        else if seconds < 3600 { return "\(seconds / 60)m" }
+        else { return "\(seconds / 3600)h" }
+    }
+}
+
+// MARK: - Mini Status Badge
+
+struct MiniStatusBadge: View {
+    let isTracking: Bool
+    let hasIssues: Bool
+    let zoneName: String?
+
+    @State private var blink = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            // Dot
+            ZStack {
+                if isTracking {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 10, height: 10)
+                        .opacity(blink ? 0.2 : 0)
+                        .scaleEffect(blink ? 1.5 : 1)
+                }
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+            }
+
+            Text(statusText)
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .foregroundColor(statusColor)
+        }
+        .fixedSize()
+        .onAppear {
+            if isTracking {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    blink = true
+                }
+            }
+        }
+        .onChange(of: isTracking) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    blink = true
+                }
+            } else {
+                blink = false
+            }
         }
     }
 
-    private var connectionIcon: String {
-        switch connectionStatus {
-        case .connected:
-            return "checkmark.circle.fill"
-        case .disconnected:
-            return "wifi.slash"
-        case .error:
-            return "exclamationmark.triangle.fill"
-        case .unknown:
-            return "questionmark.circle"
+    private var statusText: String {
+        if hasIssues { return "WARN" }
+        if isTracking { return "LIVE" }
+        if let zone = zoneName { return zone.prefix(4).uppercased() }
+        return "IDLE"
+    }
+
+    private var statusColor: Color {
+        if hasIssues { return .orange }
+        if isTracking { return .green }
+        if zoneName != nil { return .cyan }
+        return .gray
+    }
+}
+
+// MARK: - Connection Dot
+
+struct ConnectionDot: View {
+    let status: ConnectionStatusType
+
+    var body: some View {
+        Circle()
+            .fill(statusColor)
+            .frame(width: 8, height: 8)
+            .shadow(color: statusColor.opacity(0.5), radius: 3)
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .connected: return .green
+        case .disconnected: return .orange
+        case .error: return .red
+        case .unknown: return .gray
+        }
+    }
+}
+
+// MARK: - Clouds Overlay View
+
+struct CloudsOverlayView: View {
+    @State private var cloud1Offset: CGFloat = 20
+    @State private var cloud2Offset: CGFloat = 120
+    @State private var cloud3Offset: CGFloat = 220
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Cloud 1 - left side
+                Image(systemName: "cloud.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white.opacity(0.35))
+                    .blur(radius: 1)
+                    .offset(x: cloud1Offset - geometry.size.width/2, y: -8)
+
+                // Cloud 2 - center
+                Image(systemName: "cloud.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(.white.opacity(0.3))
+                    .blur(radius: 1.5)
+                    .offset(x: cloud2Offset - geometry.size.width/2, y: 12)
+
+                // Cloud 3 - right side
+                Image(systemName: "cloud.fill")
+                    .font(.system(size: 25))
+                    .foregroundColor(.white.opacity(0.32))
+                    .blur(radius: 1)
+                    .offset(x: cloud3Offset - geometry.size.width/2, y: -2)
+            }
+            .onAppear {
+                let width = geometry.size.width
+
+                // Cloud 1 - slow drift
+                withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
+                    cloud1Offset = 80
+                }
+
+                // Cloud 2 - medium drift
+                withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+                    cloud2Offset = 180
+                }
+
+                // Cloud 3 - gentle drift
+                withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+                    cloud3Offset = 280
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Cloud Shape
+
+struct CloudShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let width = rect.width
+        let height = rect.height
+
+        // Create a fluffy cloud shape
+        path.move(to: CGPoint(x: width * 0.2, y: height * 0.8))
+
+        // Bottom left bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.1, y: height * 0.5),
+            control: CGPoint(x: 0, y: height * 0.7)
+        )
+
+        // Left bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.25, y: height * 0.2),
+            control: CGPoint(x: width * 0.05, y: height * 0.2)
+        )
+
+        // Top left bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.5, y: height * 0.1),
+            control: CGPoint(x: width * 0.35, y: 0)
+        )
+
+        // Top right bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.75, y: height * 0.2),
+            control: CGPoint(x: width * 0.65, y: 0)
+        )
+
+        // Right bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.9, y: height * 0.5),
+            control: CGPoint(x: width * 0.95, y: height * 0.2)
+        )
+
+        // Bottom right bump
+        path.addQuadCurve(
+            to: CGPoint(x: width * 0.8, y: height * 0.8),
+            control: CGPoint(x: width, y: height * 0.7)
+        )
+
+        // Close bottom
+        path.addLine(to: CGPoint(x: width * 0.2, y: height * 0.8))
+
+        return path
+    }
+}
+
+// MARK: - Aurora Waves Animation
+
+struct AuroraWavesView: View {
+    @State private var phase1: CGFloat = 0
+    @State private var phase2: CGFloat = 0
+    @State private var phase3: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Wave 1 - Cyan/Teal (moves right)
+                AuroraWave(
+                    colors: [.cyan.opacity(0.4), .teal.opacity(0.3)],
+                    phase: phase1,
+                    amplitude: 20,
+                    frequency: 1.5
+                )
+
+                // Wave 2 - Blue/Purple (moves left)
+                AuroraWave(
+                    colors: [.blue.opacity(0.35), .purple.opacity(0.25)],
+                    phase: -phase2,
+                    amplitude: 25,
+                    frequency: 1.2
+                )
+
+                // Wave 3 - Teal/Blue (moves right slower)
+                AuroraWave(
+                    colors: [.teal.opacity(0.3), .blue.opacity(0.2)],
+                    phase: phase3,
+                    amplitude: 15,
+                    frequency: 2.0
+                )
+            }
+        }
+        .blur(radius: 8)
+        .onAppear {
+            startAnimations()
         }
     }
 
-    private var connectionColor: Color {
-        switch connectionStatus {
-        case .connected:
-            return .green
-        case .disconnected:
-            return .orange
-        case .error:
-            return .red
-        case .unknown:
-            return .secondary
+    private func startAnimations() {
+        // Wave 1 - 8 second cycle
+        withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
+            phase1 = 1
+        }
+
+        // Wave 2 - 10 second cycle (delayed start)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+                phase2 = 1
+            }
+        }
+
+        // Wave 3 - 12 second cycle (more delayed)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+                phase3 = 1
+            }
         }
     }
+}
 
-    private var batteryIcon: String {
-        if batteryMonitor.isCharging {
-            return "battery.100.bolt"
-        }
-        switch batteryMonitor.batteryLevel {
-        case 0...10: return "battery.0"
-        case 11...25: return "battery.25"
-        case 26...50: return "battery.50"
-        case 51...75: return "battery.75"
-        default: return "battery.100"
-        }
-    }
+// MARK: - Aurora Wave Shape
 
-    private var batteryColor: Color {
-        if batteryMonitor.isCharging { return .green }
-        switch batteryMonitor.batteryLevel {
-        case 0...10: return .red
-        case 11...20: return .orange
-        default: return .secondary
+struct AuroraWave: View {
+    let colors: [Color]
+    let phase: CGFloat
+    let amplitude: CGFloat
+    let frequency: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            Path { path in
+                let width = geometry.size.width
+                let height = geometry.size.height
+                let midHeight = height / 2
+
+                path.move(to: CGPoint(x: 0, y: height))
+
+                // Draw wave using sine function
+                for x in stride(from: 0, through: width, by: 2) {
+                    let relativeX = x / width
+                    let sine = sin((relativeX * frequency * .pi * 2) + (phase * .pi * 2))
+                    let y = midHeight + (sine * amplitude)
+                    path.addLine(to: CGPoint(x: x, y: y))
+                }
+
+                path.addLine(to: CGPoint(x: width, y: height))
+                path.closeSubpath()
+            }
+            .fill(
+                LinearGradient(
+                    colors: colors,
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .offset(x: phase * 50)
         }
     }
 }
 
 // MARK: - Preview
 
-#Preview {
-    VStack(spacing: 20) {
-        // Active tracking
-        CustomTitleHeaderView(
-            connectionMonitor: ConnectionMonitor.shared,
-            batteryMonitor: BatteryMonitor.shared,
-            isTracking: true,
-            hasIssues: false,
-            pendingCount: 0,
-            currentZoneName: nil
-        )
+#if DEBUG
+struct CustomTitleHeaderView_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 30) {
+            // Active tracking
+            CustomTitleHeaderView(
+                connectionMonitor: ConnectionMonitor.shared,
+                batteryMonitor: BatteryMonitor.shared,
+                isTracking: true,
+                hasIssues: false,
+                pendingCount: 0,
+                currentZoneName: nil,
+                connectionStatus: .connected,
+                lastSuccessfulSend: Date().addingTimeInterval(-45),
+                todayMiles: 12.4,
+                sessionDuration: 3720,
+                pointsSent: 847
+            )
 
-        // Paused at Home zone
-        CustomTitleHeaderView(
-            connectionMonitor: ConnectionMonitor.shared,
-            batteryMonitor: BatteryMonitor.shared,
-            isTracking: false,
-            hasIssues: false,
-            pendingCount: 0,
-            currentZoneName: "Home"
-        )
+            // Idle at home
+            CustomTitleHeaderView(
+                connectionMonitor: ConnectionMonitor.shared,
+                batteryMonitor: BatteryMonitor.shared,
+                isTracking: false,
+                hasIssues: false,
+                pendingCount: 0,
+                currentZoneName: "Home",
+                connectionStatus: .connected,
+                todayMiles: 8.2,
+                pointsSent: 234
+            )
 
-        // Paused with pending
-        CustomTitleHeaderView(
-            connectionMonitor: ConnectionMonitor.shared,
-            batteryMonitor: BatteryMonitor.shared,
-            isTracking: false,
-            hasIssues: false,
-            pendingCount: 3,
-            currentZoneName: nil
-        )
-
-        // Active with issues
-        CustomTitleHeaderView(
-            connectionMonitor: ConnectionMonitor.shared,
-            batteryMonitor: BatteryMonitor.shared,
-            isTracking: true,
-            hasIssues: true,
-            pendingCount: 0,
-            currentZoneName: nil
-        )
+            // Warning state
+            CustomTitleHeaderView(
+                connectionMonitor: ConnectionMonitor.shared,
+                batteryMonitor: BatteryMonitor.shared,
+                isTracking: true,
+                hasIssues: true,
+                pendingCount: 12,
+                currentZoneName: nil,
+                connectionStatus: .error,
+                todayMiles: 5.7,
+                sessionDuration: 1800
+            )
+        }
+        .padding()
+        .background(Color.black)
     }
-    .padding()
-    .background(Color.black)
 }
+#endif

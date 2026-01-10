@@ -155,7 +155,10 @@ struct MainView: View {
                             pendingCount: PendingLocationQueue.shared.count,
                             currentZoneName: geofenceManager.currentZone?.name,
                             connectionStatus: mapConnectionStatus,
-                            lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend
+                            lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
+                            todayMiles: historyManager.todaysDistance / 1609.344,
+                            sessionDuration: historyManager.currentSession?.duration ?? 0,
+                            pointsSent: settingsManager.trackingStats.pointsSentToday
                         )
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -495,6 +498,9 @@ struct MainView: View {
         }
         .disabled(!settingsManager.isConfigured)
         .opacity(settingsManager.isConfigured ? 1.0 : 0.5)
+        .accessibilityLabel(isTracking ? "Stop tracking" : "Start tracking")
+        .accessibilityHint(isTracking ? "Double tap to stop location tracking" : "Double tap to start location tracking")
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Tracking Overlay (Button + Stats)
@@ -520,6 +526,8 @@ struct MainView: View {
                         .frame(width: 34, height: 34)
                         .background(Circle().fill(Color.blue))
                 }
+                .accessibilityLabel("Center on my location")
+                .accessibilityHint("Centers the map on your current location")
 
                 // Center: Round Start/Stop Button
                 roundTrackingButton
@@ -535,6 +543,8 @@ struct MainView: View {
                         .frame(width: 34, height: 34)
                         .background(Circle().fill(Color.purple))
                 }
+                .accessibilityLabel("Expand map")
+                .accessibilityHint("Opens the map in full screen mode")
 
                 // Right stat: Points Today (blue)
                 OverlayStatView(

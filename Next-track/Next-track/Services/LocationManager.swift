@@ -246,12 +246,12 @@ class LocationManager: NSObject, ObservableObject {
     /// Check if user has moved and update frequency tier accordingly
     private func checkMovementAndUpdateTier(_ location: CLLocation) {
         // Initialize significant location if needed
-        if lastSignificantLocation == nil {
+        guard let significantLocation = lastSignificantLocation else {
             lastSignificantLocation = location
             return
         }
 
-        let distance = location.distance(from: lastSignificantLocation!)
+        let distance = location.distance(from: significantLocation)
 
         if distance > movementThreshold {
             // User has moved! Reset to normal frequency
@@ -288,11 +288,12 @@ class LocationManager: NSObject, ObservableObject {
     /// Called when user appears to be stationary
     private func handleStationaryState() {
         // Start tracking stationary time if not already
-        if stationarySince == nil {
+        guard let stationaryStartTime = stationarySince else {
             stationarySince = Date()
+            return
         }
 
-        let stationaryDuration = Date().timeIntervalSince(stationarySince!)
+        let stationaryDuration = Date().timeIntervalSince(stationaryStartTime)
 
         // Find appropriate tier based on duration
         var newTierIndex = 0

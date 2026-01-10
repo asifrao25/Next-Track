@@ -60,6 +60,13 @@
 		E0BFC0702F11369E00B1E23B /* UKCityData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC06F2F11369E00B1E23B /* UKCityData.swift */; };
 		E0BFC0722F1136B000B1E23B /* UKCitiesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0712F1136B000B1E23B /* UKCitiesManager.swift */; };
 		E0BFC0742F114DD800B1E23B /* AddUKCitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0732F114DD800B1E23B /* AddUKCitySheet.swift */; };
+		E0BFC0762F11B27100B1E23B /* ErrorStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0752F11B27100B1E23B /* ErrorStateManager.swift */; };
+		E0BFC0782F11B33800B1E23B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0772F11B33800B1E23B /* AppError.swift */; };
+		E0BFC07A2F11B35700B1E23B /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0792F11B35700B1E23B /* Logger.swift */; };
+		E0BFC07C2F11B38500B1E23B /* ErrorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */; };
+		E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */; };
+		E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */; };
+		E0BFC0822F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */; };
 		E0GEO1234567890ABCDEF01 /* countries.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0GEO9876543210FEDCBA01 /* countries.geojson */; };
 		E0LAD1234567890ABCDEF02 /* uk_lads.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0LAD9876543210FEDCBA02 /* uk_lads.geojson */; };
 /* End PBXBuildFile section */
@@ -118,6 +125,13 @@
 		E0BFC06F2F11369E00B1E23B /* UKCityData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKCityData.swift; sourceTree = "<group>"; };
 		E0BFC0712F1136B000B1E23B /* UKCitiesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKCitiesManager.swift; sourceTree = "<group>"; };
 		E0BFC0732F114DD800B1E23B /* AddUKCitySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddUKCitySheet.swift; sourceTree = "<group>"; };
+		E0BFC0752F11B27100B1E23B /* ErrorStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorStateManager.swift; sourceTree = "<group>"; };
+		E0BFC0772F11B33800B1E23B /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		E0BFC0792F11B35700B1E23B /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
+		E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
+		E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = Video_Duration_and_Animation_Adjusted.mp4; sourceTree = "<group>"; };
 		E0GEO9876543210FEDCBA01 /* countries.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = countries.geojson; sourceTree = "<group>"; };
 		E0LAD9876543210FEDCBA02 /* uk_lads.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = uk_lads.geojson; sourceTree = "<group>"; };
 		E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPreviewView.swift; sourceTree = "<group>"; };
@@ -133,6 +147,7 @@
 				E0BFC0712F1136B000B1E23B /* UKCitiesManager.swift */,
 				7E93E270147565F75E368E4D /* BackgroundTaskManager.swift */,
 				E0BFC0662F11144000B1E23B /* CountriesManager.swift */,
+				E0BFC0752F11B27100B1E23B /* ErrorStateManager.swift */,
 				9899C19CAEA479C655094AFE /* BatteryMonitor.swift */,
 				C8DE6F4F200B07538B356767 /* LocationManager.swift */,
 				E0A6A90F2F0DD8C500D86263 /* ConnectionMonitor.swift */,
@@ -155,6 +170,7 @@
 			children = (
 				E0A6A9132F0DD92100D86263 /* HapticManager.swift */,
 				5BF5DCB78311AB9ADB7D4326 /* QRCodeScanner.swift */,
+				E0BFC0792F11B35700B1E23B /* Logger.swift */,
 				59A4670E34D04416D5781ABF /* UserDefaultsKeys.swift */,
 			);
 			name = Utilities;
@@ -189,8 +205,11 @@
 				E0A6A9192F0DDB1A00D86263 /* GeofenceSettingsView.swift */,
 				E0BFC05A2F1071A800B1E23B /* CountriesTab */,
 				4C35AAAAD93F2CE96B3BB5E4 /* MainView.swift */,
+				E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */,
+				E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */,
 				E0A6A91B2F0DE02400D86263 /* CustomTitleHeaderView.swift */,
 				E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */,
+				E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */,
 				CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */,
 				E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */,
 				C20D411677CE474BB13A34D8 /* InsightsTab/InsightsView.swift */,
@@ -211,6 +230,7 @@
 				E0BFC06F2F11369E00B1E23B /* UKCityData.swift */,
 				B11E03C0F45DFFECE74D7CA2 /* ServerConfig.swift */,
 				E0A6A9152F0DD9D700D86263 /* TrackingHistory.swift */,
+				E0BFC0772F11B33800B1E23B /* AppError.swift */,
 				3E59F9CEAC0AAD961A876C93 /* TrackingSettings.swift */,
 				4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */,
 				CD50B260139B4567B56B9236 /* Insights.swift */,
@@ -262,6 +282,7 @@
 				E0GEO9876543210FEDCBA01 /* countries.geojson */,
 				E0LAD9876543210FEDCBA02 /* uk_lads.geojson */,
 				C737BCF0ACCC800B9440F1F7 /* Info.plist */,
+				E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */,
 				0D26E492F1DABC170BFA87B9 /* Next-track.entitlements */,
 			);
 			name = Resources;
@@ -326,6 +347,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0BFC0822F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 in Resources */,
 				02B3E4CFE5B777C381097507 /* Assets.xcassets in Resources */,
 				E0GEO1234567890ABCDEF01 /* countries.geojson in Resources */,
 				E0LAD1234567890ABCDEF02 /* uk_lads.geojson in Resources */,
@@ -359,6 +381,7 @@
 				8C03DEBA87B402FCEE4561CC /* MotionManager.swift in Sources */,
 				8FE6245B58B232D872565AE6 /* NextTrackApp.swift in Sources */,
 				CCED87382434579FEEBA2F67 /* PhoneTrackAPI.swift in Sources */,
+				E0BFC0782F11B33800B1E23B /* AppError.swift in Sources */,
 				0F0F4B7191FFB2B3353E314B /* QRCodeScanner.swift in Sources */,
 				867E1BD7DB67B33955F468C5 /* ServerConfig.swift in Sources */,
 				49E968F2562032E4C88261E4 /* SettingsManager.swift in Sources */,
@@ -368,11 +391,14 @@
 				E0BFC0542F10718700B1E23B /* GeoJSONModels.swift in Sources */,
 				E0A6A9142F0DD92100D86263 /* HapticManager.swift in Sources */,
 				E0BFC0632F1113F800B1E23B /* CountriesMapView.swift in Sources */,
+				E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */,
+				E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */,
 				DAC048833DBCB45E64DA82FC /* UserDefaultsKeys.swift in Sources */,
 				E0A6A91C2F0DE02400D86263 /* CustomTitleHeaderView.swift in Sources */,
 				AFECA9F2358249DBA1DA2F06 /* InsightsTab/InsightsView.swift in Sources */,
 				04358530F98346A4BB37F44A /* PlacesTab/PlacesView.swift in Sources */,
 				22A0363BA41C4FD793295655 /* CitiesTab/CitiesView.swift in Sources */,
+				E0BFC07C2F11B38500B1E23B /* ErrorBannerView.swift in Sources */,
 				E0BFC05B2F1071A800B1E23B /* CountriesListView.swift in Sources */,
 				E0BFC05C2F1071A800B1E23B /* CountryDetailView.swift in Sources */,
 				E0BFC05D2F1071A800B1E23B /* CountriesView.swift in Sources */,
@@ -383,9 +409,11 @@
 				E0BFC06D2F11366800B1E23B /* UKCityDetailSheet.swift in Sources */,
 				E0BFC06E2F11366800B1E23B /* UKCitiesView.swift in Sources */,
 				3E39533E64764515B5E4F4DF /* PlaceDetectionManager.swift in Sources */,
+				E0BFC07A2F11B35700B1E23B /* Logger.swift in Sources */,
 				E0BFC0652F11142300B1E23B /* CountryDetailView.swift in Sources */,
 				6BBD5885F97941F090273805 /* InsightsManager.swift in Sources */,
 				E0BFC0742F114DD800B1E23B /* AddUKCitySheet.swift in Sources */,
+				E0BFC0762F11B27100B1E23B /* ErrorStateManager.swift in Sources */,
 				E0BFC0722F1136B000B1E23B /* UKCitiesManager.swift in Sources */,
 				ADF716196ED7485597079DDA /* CityTracker.swift in Sources */,
 				DC1F6BE7E2ED4284BEA9EE55 /* VisitedCity.swift in Sources */,
