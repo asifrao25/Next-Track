@@ -710,12 +710,10 @@ struct MainView: View {
                 .foregroundColor(.white)
                 .cornerRadius(16)
             }
-            .disabled(!settingsManager.isConfigured)
-
             if !settingsManager.isConfigured {
-                Text("Configure server settings to start tracking")
+                Text("Server not configured - tracking locally only")
                     .font(.caption)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -764,8 +762,6 @@ struct MainView: View {
                         .foregroundColor(.white)
                 )
         }
-        .disabled(!settingsManager.isConfigured)
-        .opacity(settingsManager.isConfigured ? 1.0 : 0.5)
         .accessibilityLabel(isTracking ? "Stop tracking" : "Start tracking")
         .accessibilityHint(isTracking ? "Double tap to stop location tracking" : "Double tap to start location tracking")
         .accessibilityAddTraits(.isButton)
@@ -1016,23 +1012,26 @@ struct MainView: View {
             // Track place visits during active tracking
             placeMgr.processLocation(location, timestamp: location.timestamp)
 
-            let distance = locMgr.getDistanceFromLastSent() ?? 0
+            // Only send to server if configured (server is optional)
+            if settingsMgr.isConfigured {
+                let distance = locMgr.getDistanceFromLastSent() ?? 0
 
-            phoneTrk.sendLocation(location) { result in
-                switch result {
-                case .success:
-                    settingsMgr.recordSuccessfulSend(distance: distance)
-                    connMon.recordSuccessfulSend()
-                    HapticManager.shared.locationSent()
-                case .failure:
-                    settingsMgr.recordFailedSend()
-                    connMon.recordFailedSend()
-                    if settingsMgr.trackingSettings.retryFailedSends {
-                        let locationData = LocationData(
-                            from: location,
-                            batteryLevel: battMon.batteryLevel
-                        )
-                        PendingLocationQueue.shared.add(locationData)
+                phoneTrk.sendLocation(location) { result in
+                    switch result {
+                    case .success:
+                        settingsMgr.recordSuccessfulSend(distance: distance)
+                        connMon.recordSuccessfulSend()
+                        HapticManager.shared.locationSent()
+                    case .failure:
+                        settingsMgr.recordFailedSend()
+                        connMon.recordFailedSend()
+                        if settingsMgr.trackingSettings.retryFailedSends {
+                            let locationData = LocationData(
+                                from: location,
+                                batteryLevel: battMon.batteryLevel
+                            )
+                            PendingLocationQueue.shared.add(locationData)
+                        }
                     }
                 }
             }
@@ -1134,14 +1133,7 @@ struct MainView: View {
             return
         }
 
-        // Step 4: Check if configured
-        guard settingsManager.isConfigured else {
-            print("[Startup] Step 3: Server not configured - skipping auto-start")
-            print("[Startup] ========== Startup complete (not configured) ==========")
-            return
-        }
-
-        // Step 5: Auto-start tracking
+        // Step 4: Auto-start tracking (server is optional - tracking works locally)
         print("[Startup] Step 4: Auto-starting tracking...")
         let success = trackingStateManager.startTracking(source: .autoStart)
 
