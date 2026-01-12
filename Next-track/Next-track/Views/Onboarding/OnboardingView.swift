@@ -133,62 +133,95 @@ struct WelcomePage: View {
 
     var body: some View {
         ZStack {
-            // Travel-themed gradient background
+            // App theme gradient background
             LinearGradient(
                 colors: [
-                    Color(red: 0.1, green: 0.1, blue: 0.2),
-                    Color(red: 0.05, green: 0.15, blue: 0.25),
-                    Color(red: 0.1, green: 0.2, blue: 0.3)
+                    Color(red: 0.05, green: 0.08, blue: 0.12),
+                    Color(red: 0.08, green: 0.12, blue: 0.18),
+                    Color(red: 0.05, green: 0.1, blue: 0.15)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                // Header Image
-                OnboardingHeader()
+            VStack(spacing: 0) {
+                // Compact app header at top
+                OnboardingCompactHeader()
 
                 Spacer()
 
-                // Tagline
-                VStack(spacing: 8) {
-                    Text("Your Journey, Remembered")
-                        .font(.title2.bold())
-                        .foregroundColor(.white)
+                // Main content - centered
+                VStack(spacing: 32) {
+                    // Globe icon with gradient
+                    ZStack {
+                        // Outer glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.teal.opacity(0.3),
+                                        Color.purple.opacity(0.1),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 30,
+                                    endRadius: 80
+                                )
+                            )
+                            .frame(width: 160, height: 160)
 
-                    Text("Track everywhere you've been")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                }
+                        // Icon
+                        Image(systemName: "globe.europe.africa.fill")
+                            .font(.system(size: 70, weight: .light))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.teal, .purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
 
-                Spacer()
+                    // Title with gradient
+                    Text("Your Travel Diary,\nOn Autopilot")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, .white.opacity(0.9)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
 
-                // Feature list
-                VStack(spacing: 16) {
-                    FeatureRow(
-                        icon: "location.fill",
-                        title: "Track Your Journey",
-                        description: "Record your location in real-time"
-                    )
+                    // Body text
+                    VStack(spacing: 12) {
+                        Text("Automatic tracking of your journeys.")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
 
-                    FeatureRow(
-                        icon: "globe.europe.africa.fill",
-                        title: "Countries & Cities",
-                        description: "See everywhere you've traveled"
-                    )
+                        Text("Every city. Every country. Every adventure.")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
 
-                    FeatureRow(
-                        icon: "icloud.fill",
-                        title: "Sync & Backup",
-                        description: "Never lose your travel history"
-                    )
+                        Text("Zero effort, 100% private.")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.teal, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    }
+                    .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 32)
 
                 Spacer()
+                Spacer()
             }
-            .padding()
         }
     }
 }
@@ -548,7 +581,62 @@ struct ServerSetupPage: View {
     }
 }
 
-// MARK: - Onboarding Header
+// MARK: - Compact Onboarding Header (No Stats)
+
+struct OnboardingCompactHeader: View {
+    var body: some View {
+        // Just the app branding header image - no stats bar
+        Image("HeaderImage")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .frame(height: 60)
+            .opacity(0.85)
+            .background(
+                // Subtle gradient behind
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.08, green: 0.1, blue: 0.15),
+                        Color(red: 0.05, green: 0.08, blue: 0.12)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 20,
+                    bottomTrailingRadius: 20,
+                    topTrailingRadius: 0
+                )
+            )
+            .overlay(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 20,
+                    bottomTrailingRadius: 20,
+                    topTrailingRadius: 0
+                )
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.2),
+                            Color.teal.opacity(0.3),
+                            Color.purple.opacity(0.2)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .shadow(color: .teal.opacity(0.2), radius: 10, x: 0, y: 5)
+            .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - Legacy Onboarding Header (Taller version)
 
 struct OnboardingHeader: View {
     var body: some View {

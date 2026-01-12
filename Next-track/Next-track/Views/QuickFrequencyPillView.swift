@@ -44,19 +44,27 @@ struct QuickFrequencyPillView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: "timer")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
+
+                Text("Update frequency")
+                    .font(.system(size: 12, weight: .medium))
 
                 Text(shortDisplayName)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .teal],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 7, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
             }
-            .foregroundColor(.white.opacity(0.8))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .foregroundColor(.primary)
         }
     }
 

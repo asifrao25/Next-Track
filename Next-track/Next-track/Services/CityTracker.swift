@@ -170,17 +170,22 @@ class CityTracker: ObservableObject {
         countryCode: String?,
         coordinate: CLLocationCoordinate2D
     ) {
-        // Look for existing city (same name + country)
+        // Normalize for comparison (case-insensitive, trimmed)
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedCountry = country.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Look for existing city (case-insensitive name + country match)
         if let index = visitedCities.firstIndex(where: {
-            $0.name == name && $0.country == country
+            $0.name.lowercased() == normalizedName &&
+            $0.country.lowercased() == normalizedCountry
         }) {
-            // Update existing city
+            // City already exists - just record the visit, don't add duplicate pin
             visitedCities[index].lastVisitDate = Date()
             visitedCities[index].visitCount += 1
             visitedCities[index].totalPointsRecorded += 1
-            print("[CityTracker] Updated city: \(name) (visits: \(visitedCities[index].visitCount))")
+            print("[CityTracker] Repeat visit to: \(name) (total visits: \(visitedCities[index].visitCount))")
         } else {
-            // New city discovered!
+            // Truly new city discovered!
             let newCity = VisitedCity(
                 name: name,
                 state: state,

@@ -43,7 +43,7 @@ struct VisitedView: View {
                 }
 
                 // Header overlay at top
-                VStack {
+                VStack(spacing: 8) {
                     CustomTitleHeaderView(
                         connectionMonitor: connectionMonitor,
                         batteryMonitor: batteryMonitor,
@@ -60,6 +60,70 @@ struct VisitedView: View {
                         accentColor: .purple
                     )
                     .padding(.horizontal, 4)
+
+                    // Stats bar - Countries and Cities count
+                    HStack(spacing: 20) {
+                        // Countries stat
+                        HStack(spacing: 6) {
+                            Image(systemName: "flag.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.teal, .purple], startPoint: .leading, endPoint: .trailing)
+                                )
+                            Text("Countries:")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("\(countriesManager.visitedCountries.count)/195")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.teal, .purple], startPoint: .leading, endPoint: .trailing)
+                                )
+                        }
+
+                        // Divider
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.3))
+                            .frame(width: 1, height: 16)
+
+                        // Cities stat
+                        HStack(spacing: 6) {
+                            Image(systemName: "building.2.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.purple, .teal], startPoint: .leading, endPoint: .trailing)
+                                )
+                            Text("Cities:")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("\(cityTracker.visitedCities.count)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.purple, .teal], startPoint: .leading, endPoint: .trailing)
+                                )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.3),
+                                        Color.teal.opacity(0.2),
+                                        Color.white.opacity(0.1)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 0.5
+                            )
+                    )
 
                     Spacer()
                 }

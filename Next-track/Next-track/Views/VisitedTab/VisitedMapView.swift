@@ -30,7 +30,14 @@ struct VisitedMapView: View {
     @State private var pressStartTime: Date?
     @State private var pressTimer: Timer?
     @State private var hasFiredLongPress = false
-    private let longPressDuration: TimeInterval = 1.0
+    @State private var isFingerDown = false  // Track if finger is currently pressed
+    private let longPressDuration: TimeInterval = 2.0  // 1s delay + 1s ring fill
+
+    // Long-press timer overlay
+    @State private var showTimerOverlay = false
+    @State private var timerProgress: CGFloat = 0.0
+    @State private var timerTouchLocation: CGPoint = .zero
+    @State private var progressTimer: Timer?
 
     // Zoom thresholds
     private let cityMarkerZoomThreshold: Double = 5_000_000
@@ -90,37 +97,106 @@ struct VisitedMapView: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            // Mark finger as down
+                            isFingerDown = true
+
                             // Only start timer on initial touch
                             if pressStartTime == nil && !hasFiredLongPress {
                                 pressStartTime = Date()
 
-                                // Store touch location for coordinate conversion
+                                // Store touch location for coordinate conversion and overlay
                                 let touchLocation = value.location
+                                timerTouchLocation = touchLocation
 
-                                // Start timer - will fire after 1 second while finger still down
-                                pressTimer = Timer.scheduledTimer(withTimeInterval: longPressDuration, repeats: false) { _ in
+                                // Timer overlay starts hidden, appears after 1 second delay
+                                timerProgress = 0.0
+                                showTimerOverlay = false
+
+                                let timerShowDelay: TimeInterval = 1.0  // Show ring after 1 second
+                                let ringDuration: TimeInterval = longPressDuration - timerShowDelay  // Ring fills over remaining time
+
+                                // Start progress timer - updates every 50ms for smooth animation
+                                let updateInterval: TimeInterval = 0.05
+                                progressTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { timer in
                                     DispatchQueue.main.async {
-                                        guard !hasFiredLongPress else { return }
-                                        hasFiredLongPress = true
+                                        // CRITICAL: Stop immediately if finger lifted
+                                        guard isFingerDown else {
+                                            timer.invalidate()
+                                            progressTimer = nil
+                                            showTimerOverlay = false
+                                            timerProgress = 0.0
+                                            return
+                                        }
 
-                                        // Convert touch location to map coordinate
-                                        if let coordinate = proxy.convert(touchLocation, from: .local) {
-                                            handleLongPress(at: coordinate)
+                                        guard let startTime = pressStartTime, !hasFiredLongPress else {
+                                            timer.invalidate()
+                                            progressTimer = nil
+                                            showTimerOverlay = false
+                                            timerProgress = 0.0
+                                            return
+                                        }
+
+                                        let elapsed = Date().timeIntervalSince(startTime)
+
+                                        // Show timer ring after 1 second delay
+                                        if elapsed >= timerShowDelay && !showTimerOverlay {
+                                            showTimerOverlay = true
+                                            HapticManager.shared.light()  // Haptic when ring appears
+                                        }
+
+                                        // Calculate progress (0-1) for the ring fill phase
+                                        if elapsed >= timerShowDelay {
+                                            let ringElapsed = elapsed - timerShowDelay
+                                            let newProgress = min(ringElapsed / ringDuration, 1.0)
+                                            timerProgress = CGFloat(newProgress)
+                                        }
+
+                                        // Check if we've reached the full threshold AND finger still down
+                                        if elapsed >= longPressDuration && isFingerDown {
+                                            timer.invalidate()
+                                            progressTimer = nil
+                                            hasFiredLongPress = true
+                                            showTimerOverlay = false
+                                            timerProgress = 0.0
+
+                                            // Convert touch location to map coordinate
+                                            if let coordinate = proxy.convert(touchLocation, from: .local) {
+                                                handleLongPress(at: coordinate)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                         .onEnded { _ in
-                            // Clean up when finger lifted
+                            // Mark finger as lifted FIRST
+                            isFingerDown = false
+
+                            // Clean up timers and state
                             pressTimer?.invalidate()
                             pressTimer = nil
+                            progressTimer?.invalidate()
+                            progressTimer = nil
                             pressStartTime = nil
                             hasFiredLongPress = false
+                            showTimerOverlay = false
+                            timerProgress = 0.0
                         }
                 )
             }
 
+            // Long-press timer overlay - positioned above touch point so finger doesn't hide it
+            if showTimerOverlay {
+                GeometryReader { geometry in
+                    LongPressTimerView(progress: timerProgress)
+                        .position(
+                            x: timerTouchLocation.x,
+                            y: timerTouchLocation.y - 80  // Offset above finger
+                        )
+                        .allowsHitTesting(false)
+                }
+                .allowsHitTesting(false)
+            }
         }
         // Country detail sheet
         .sheet(item: $selectedCountry) { country in

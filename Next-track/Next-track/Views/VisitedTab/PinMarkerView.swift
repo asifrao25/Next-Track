@@ -274,6 +274,131 @@ struct CountryFlagPinView: View {
     }
 }
 
+// MARK: - Long Press Timer View
+
+struct LongPressTimerView: View {
+    let progress: CGFloat  // 0.0 to 1.0
+
+    private let size: CGFloat = 56
+    private let strokeWidth: CGFloat = 4
+
+    var body: some View {
+        ZStack {
+            // Outer glow
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.teal.opacity(0.3),
+                            Color.purple.opacity(0.15),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: size / 4,
+                        endRadius: size / 2 + 8
+                    )
+                )
+                .frame(width: size + 16, height: size + 16)
+
+            // Background circle (track)
+            Circle()
+                .stroke(
+                    Color.white.opacity(0.2),
+                    lineWidth: strokeWidth
+                )
+                .frame(width: size, height: size)
+
+            // Progress arc (pie-style fill)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    AngularGradient(
+                        colors: [.teal, .purple, .teal],
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
+                )
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(-90))  // Start from top
+
+            // Center filled circle that grows
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.teal.opacity(0.3 + progress * 0.4),
+                            Color.purple.opacity(0.2 + progress * 0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size - strokeWidth * 2, height: size - strokeWidth * 2)
+
+            // Inner progress indicator
+            Circle()
+                .trim(from: 0, to: progress)
+                .fill(
+                    AngularGradient(
+                        colors: [
+                            Color.teal.opacity(0.6),
+                            Color.purple.opacity(0.6),
+                            Color.teal.opacity(0.6)
+                        ],
+                        center: .center
+                    )
+                )
+                .frame(width: size - strokeWidth * 4, height: size - strokeWidth * 4)
+                .mask(
+                    TimerPieSlice(progress: progress)
+                )
+
+            // Center dot
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.9), .white.opacity(0.6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 12, height: 12)
+                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+        }
+        .scaleEffect(0.9 + progress * 0.1)  // Subtle grow effect
+        .animation(.easeOut(duration: 0.1), value: progress)
+    }
+}
+
+// MARK: - Timer Pie Slice Shape
+
+struct TimerPieSlice: Shape {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+
+        path.move(to: center)
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(-90 + 360 * Double(progress)),
+            clockwise: false
+        )
+        path.closeSubpath()
+
+        return path
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -286,6 +411,19 @@ struct CountryFlagPinView: View {
             PinMarkerView(cityName: "London", showLabel: true)
             PinMarkerView(cityName: "Paris")
             MiniPinMarkerView()
+        }
+    }
+}
+
+#Preview("Timer Progress") {
+    ZStack {
+        Color.black.ignoresSafeArea()
+
+        VStack(spacing: 30) {
+            LongPressTimerView(progress: 0.0)
+            LongPressTimerView(progress: 0.33)
+            LongPressTimerView(progress: 0.66)
+            LongPressTimerView(progress: 1.0)
         }
     }
 }
