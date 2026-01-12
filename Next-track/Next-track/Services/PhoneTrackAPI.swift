@@ -122,7 +122,7 @@ class PhoneTrackAPI: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Next-track iOS", forHTTPHeaderField: "User-Agent")
+        request.setValue("Been There iOS", forHTTPHeaderField: "User-Agent")
 
         // Capture start time for latency measurement
         let requestStartTime = CFAbsoluteTimeGetCurrent()
@@ -192,27 +192,71 @@ class PhoneTrackAPI: ObservableObject {
             return
         }
 
-        guard let url = URL(string: config.loggingURL) else {
+        // Build a test URL with minimal dummy location data
+        // PhoneTrack's logGet endpoint expects query parameters
+        let testURL = config.loggingURL + "?lat=0&lon=0&timestamp=\(Int(Date().timeIntervalSince1970))&acc=10"
+
+        guard let url = URL(string: testURL) else {
             completion(false, "Invalid server URL")
             return
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 10
+        request.timeoutInterval = 15
 
         session.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    completion(false, "Connection failed: \(error.localizedDescription)")
+                    let nsError = error as NSError
+                    if nsError.domain == NSURLErrorDomain {
+                        switch nsError.code {
+                        case NSURLErrorNotConnectedToInternet:
+                            completion(false, "No internet connection")
+                        case NSURLErrorTimedOut:
+                            completion(false, "Connection timed out")
+                        case NSURLErrorCannotFindHost:
+                            completion(false, "Server not found - check URL")
+                        case NSURLErrorSecureConnectionFailed:
+                            completion(false, "SSL/TLS error - check certificate")
+                        default:
+                            completion(false, "Connection failed: \(error.localizedDescription)")
+                        }
+                    } else {
+                        completion(false, "Connection failed: \(error.localizedDescription)")
+                    }
                     return
                 }
 
                 if let httpResponse = response as? HTTPURLResponse {
-                    if (200...299).contains(httpResponse.statusCode) {
-                        completion(true, "Connection successful!")
-                    } else {
-                        completion(false, "Server returned error: HTTP \(httpResponse.statusCode)")
+                    // PhoneTrack returns 200 on successful log
+                    // It may return other codes but if we get a response, the connection works
+                    switch httpResponse.statusCode {
+                    case 200...299:
+                        completion(true, "Connection successful! Server is ready.")
+                    case 401:
+                        completion(false, "Unauthorized - check your token")
+                    case 403:
+                        completion(false, "Forbidden - check permissions")
+                    case 404:
+                        completion(false, "PhoneTrack not found - check URL and token")
+                    case 500...599:
+                        // Server responded but had an internal error
+                        // This often means PhoneTrack received the request but had an issue
+                        // If we got here, connectivity works - the issue is server-side
+                        if let data = data, let responseText = String(data: data, encoding: .utf8), !responseText.isEmpty {
+                            // Check if it's a PhoneTrack response
+                            if responseText.contains("phonetrack") || responseText.contains("PhoneTrack") || responseText.lowercased().contains("logged") {
+                                completion(true, "Connection works! Server responded.")
+                            } else {
+                                completion(true, "Server reachable (HTTP \(httpResponse.statusCode))")
+                            }
+                        } else {
+                            // Got a response, so connection works even if server had an error
+                            completion(true, "Server reachable (HTTP \(httpResponse.statusCode))")
+                        }
+                    default:
+                        completion(false, "Server returned HTTP \(httpResponse.statusCode)")
                     }
                 } else {
                     completion(false, "Invalid server response")

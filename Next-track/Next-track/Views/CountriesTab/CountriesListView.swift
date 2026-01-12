@@ -10,6 +10,7 @@ import SwiftUI
 struct CountriesListView: View {
     let countries: [VisitedCountry]
     @Binding var selectedSort: CountrySortOption
+    @ObservedObject var countriesManager = CountriesManager.shared
 
     var body: some View {
         List {
@@ -37,6 +38,13 @@ struct CountriesListView: View {
                             NavigationLink(destination: CountryDetailView(country: country)) {
                                 CountryRowView(country: country)
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    deleteCountry(country)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
@@ -47,11 +55,24 @@ struct CountriesListView: View {
                         NavigationLink(destination: CountryDetailView(country: country)) {
                             CountryRowView(country: country)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                deleteCountry(country)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .contentMargins(.bottom, 100, for: .scrollContent)
+    }
+
+    private func deleteCountry(_ country: VisitedCountry) {
+        HapticManager.shared.warning()
+        countriesManager.deleteCountry(country.id)
     }
 
     private var groupedCountries: [(continent: String, countries: [VisitedCountry])] {

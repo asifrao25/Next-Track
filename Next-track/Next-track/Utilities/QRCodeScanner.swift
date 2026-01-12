@@ -53,7 +53,7 @@ struct QRScannerView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
 
-                        Text("Next-track needs camera access to scan QR codes from PhoneTrack.")
+                        Text("Been There needs camera access to scan QR codes from PhoneTrack.")
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)

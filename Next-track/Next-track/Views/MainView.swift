@@ -24,6 +24,9 @@ struct MainView: View {
     @StateObject private var placeManager = PlaceDetectionManager.shared
     @StateObject private var insightsManager = InsightsManager.shared
     @StateObject private var countriesManager = CountriesManager.shared
+    @StateObject private var iCloudSync = iCloudSyncManager.shared
+    @StateObject private var backupManager = FullBackupManager.shared
+    @StateObject private var autoBackupManager = AutoExportManager.shared
 
     @State private var selectedTab = AppTab.centerIndex  // Start on Track tab (index 3)
     @State private var isTracking = false
@@ -34,6 +37,9 @@ struct MainView: View {
     @State private var showInterruptedTrackingAlert = false
     @State private var mapPosition: MapCameraPosition = .automatic
     @State private var pendingCenterOnLocation = false
+    @State private var showICloudPopup = false
+    @State private var hasShownICloudPopup = false
+    @State private var aboutCreatorExpanded = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -42,16 +48,10 @@ struct MainView: View {
                 switch selectedTab {
                 case AppTab.stats.rawValue:
                     StatsHistoryView()
-                case AppTab.cities.rawValue:
-                    CitiesView()
-                case AppTab.places.rawValue:
-                    PlacesView()
+                case AppTab.visited.rawValue:
+                    VisitedView()
                 case AppTab.track.rawValue:
                     homeTab
-                case AppTab.countries.rawValue:
-                    CountriesView()
-                case AppTab.ukCities.rawValue:
-                    UKCitiesView()
                 case AppTab.insights.rawValue:
                     InsightsView()
                 case AppTab.settings.rawValue:
@@ -99,6 +99,9 @@ struct MainView: View {
             checkForSessionRecovery()
             // Coordinated startup sequence (replaces separate delays)
             performCoordinatedStartup()
+
+            // Center map on current location when app loads
+            centerMapOnCurrentLocation()
         }
         .onChange(of: trackingStateManager.isTracking) { _, newValue in
             // Keep local state in sync with TrackingStateManager
@@ -132,6 +135,37 @@ struct MainView: View {
         } message: {
             Text("Your tracking was interrupted (phone restart or app terminated). Would you like to resume?")
         }
+        .overlay {
+            // iCloud sync popup
+            if showICloudPopup {
+                iCloudSyncPopupView(isPresented: $showICloudPopup)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .zIndex(100)
+            }
+        }
+        .onChange(of: iCloudSync.iCloudAvailable) { _, isAvailable in
+            // Show popup once if iCloud becomes unavailable and we haven't shown it yet
+            if !isAvailable && !hasShownICloudPopup && startupCompleted {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation(.spring(response: 0.4)) {
+                        showICloudPopup = true
+                        hasShownICloudPopup = true
+                    }
+                }
+            }
+        }
+        .task {
+            // Check iCloud availability after a delay on first launch
+            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+            if !iCloudSync.iCloudAvailable && !hasShownICloudPopup {
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.4)) {
+                        showICloudPopup = true
+                        hasShownICloudPopup = true
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Home Tab
@@ -158,16 +192,21 @@ struct MainView: View {
                             lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
                             todayMiles: historyManager.todaysDistance / 1609.344,
                             sessionDuration: historyManager.currentSession?.duration ?? 0,
-                            pointsSent: settingsManager.trackingStats.pointsSentToday
+                            pointsSent: settingsManager.trackingStats.pointsSentToday,
+                            currentElevation: locationManager.currentLocation?.altitude,
+                            accentColor: .green
                         )
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                        .padding(.horizontal, 4)
 
                         Spacer()
 
                         // Bottom controls (button + stats)
                         trackingOverlay
-                            .padding(.bottom, 110)  // Account for custom tab bar height
+                            .padding(.bottom, 6)
+
+                        // Quick frequency selector - flush with navbar top
+                        QuickFrequencyPillView()
+                            .padding(.bottom, 78)  // Flush with navbar top edge
                     }
                 }
             }
@@ -207,7 +246,105 @@ struct MainView: View {
     private var settingsTab: some View {
         NavigationStack {
             List {
-                Section("Connection") {
+                // About Creator - Collapsible Section
+                Section {
+                    // Collapsible Header
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            aboutCreatorExpanded.toggle()
+                        }
+                        HapticManager.shared.light()
+                    } label: {
+                        HStack(spacing: 14) {
+                            // Creator Photo
+                            Image("creator")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [.pink, .purple],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 2
+                                        )
+                                )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Dr Asif Rao")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("Creator & Developer")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.secondary)
+                                .rotationEffect(.degrees(aboutCreatorExpanded ? 90 : 0))
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Expanded Content
+                    if aboutCreatorExpanded {
+                        // Send Feedback
+                        Button {
+                            if let url = URL(string: "mailto:mail@asifrao.com?subject=Been%20There%20App%20Feedback") {
+                                UIApplication.shared.open(url)
+                            }
+                            HapticManager.shared.light()
+                        } label: {
+                            HStack {
+                                Label("Send Feedback", systemImage: "envelope.fill")
+                                Spacer()
+                                Text("mail@asifrao.com")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .foregroundColor(.primary)
+
+                        // Buy Me a Coffee (Placeholder)
+                        Button {
+                            HapticManager.shared.medium()
+                            // TODO: Add Buy Me a Coffee link
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Image(systemName: "cup.and.saucer.fill")
+                                Text("Buy Me a Coffee")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                            }
+                            .foregroundColor(.black)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 1.0, green: 0.87, blue: 0.0), Color(red: 1.0, green: 0.6, blue: 0.0)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+                } header: {
+                    Label("About the Creator", systemImage: "person.fill")
+                }
+
+                // Connection Section
+                Section("Connect to Nextcloud Server (optional)") {
                     NavigationLink {
                         ConnectionSettingsView()
                     } label: {
@@ -216,6 +353,135 @@ struct MainView: View {
                     .hapticOnTap()
                 }
 
+                // iCloud Sync Section
+                Section {
+                    // iCloud Status Row
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.cyan, .blue],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 44, height: 44)
+
+                            Image(systemName: "icloud.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("iCloud Sync")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(iCloudSync.isEnabled && iCloudSync.iCloudAvailable ? Color.green : Color.orange)
+                                    .frame(width: 8, height: 8)
+                                Text(iCloudSync.isEnabled ? (iCloudSync.iCloudAvailable ? "Connected" : "Unavailable") : "Disabled")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $iCloudSync.isEnabled)
+                            .labelsHidden()
+                            .disabled(!iCloudSync.iCloudAvailable)
+                    }
+                    .padding(.vertical, 4)
+
+                    // Sync Now Button
+                    if iCloudSync.isEnabled && iCloudSync.iCloudAvailable {
+                        Button {
+                            Task { await iCloudSync.syncAllData() }
+                            HapticManager.shared.medium()
+                        } label: {
+                            HStack {
+                                if iCloudSync.isSyncing {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Syncing...")
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                    Text("Sync Now")
+                                }
+                                Spacer()
+                                if let lastSync = iCloudSync.lastSyncDate {
+                                    Text(lastSync, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .disabled(iCloudSync.isSyncing)
+                    }
+                } header: {
+                    Label("iCloud", systemImage: "icloud.fill")
+                } footer: {
+                    Text("Sync your data across all your devices.")
+                }
+
+                // Backup & Restore Section
+                Section {
+                    // Last Backup Info
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.orange, .red],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 44, height: 44)
+
+                            Image(systemName: "externaldrive.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Local Backup")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            if let lastBackup = autoBackupManager.lastExportDate {
+                                Text("Last: \(lastBackup, format: .dateTime.month(.abbreviated).day().hour().minute())")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("No backup yet")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $autoBackupManager.isEnabled)
+                            .labelsHidden()
+                    }
+                    .padding(.vertical, 4)
+
+                    // Export & Restore Navigation
+                    NavigationLink {
+                        BackupRestoreView()
+                    } label: {
+                        Label("Export & Restore", systemImage: "square.and.arrow.up.on.square")
+                    }
+                    .hapticOnTap()
+                } header: {
+                    Label("Backup & Restore", systemImage: "externaldrive.fill")
+                }
+
+                // Tracking Section
                 Section("Tracking") {
                     NavigationLink {
                         TrackingSettingsView()
@@ -248,6 +514,7 @@ struct MainView: View {
                     .hapticOnTap()
                 }
 
+                // Advanced Section
                 Section("Advanced") {
                     NavigationLink {
                         DataSettingsView()
@@ -257,6 +524,7 @@ struct MainView: View {
                     .hapticOnTap()
                 }
 
+                // About Section
                 Section("About") {
                     HStack {
                         Text("Version")
@@ -591,6 +859,28 @@ struct MainView: View {
         }
     }
 
+    /// Center map on current location at app startup (no haptic)
+    private func centerMapOnCurrentLocation() {
+        // Small delay to allow view to initialize
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if let loc = locationManager.currentLocation {
+                // Location already available - center immediately
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    mapPosition = .camera(MapCamera(
+                        centerCoordinate: loc.coordinate,
+                        distance: 1500,  // Slightly zoomed out for initial view
+                        heading: 0,
+                        pitch: 0
+                    ))
+                }
+            } else {
+                // Request location and center when it arrives
+                locationManager.requestSingleLocation()
+                pendingCenterOnLocation = true
+            }
+        }
+    }
+
     // MARK: - Full Screen Map
 
     private var mapFullScreen: some View {
@@ -715,7 +1005,6 @@ struct MainView: View {
         let locMgr = locationManager
         let cityTrk = CityTracker.shared
         let placeMgr = PlaceDetectionManager.shared
-        let ukCitiesMgr = UKCitiesManager.shared
 
         locationManager.onLocationUpdate = { location in
             // Record location to history (this was failing before due to closure capture)
@@ -723,9 +1012,6 @@ struct MainView: View {
 
             // Track city visits (rate-limited internally)
             cityTrk.processLocation(location)
-
-            // Track UK city/LAD visits automatically (rate-limited internally)
-            ukCitiesMgr.processLocation(location)
 
             // Track place visits during active tracking
             placeMgr.processLocation(location, timestamp: location.timestamp)
@@ -1014,39 +1300,64 @@ struct TrackingSettingsView: View {
     @State private var trackingSettings = TrackingSettings.default
 
     var body: some View {
-        Form {
-            Section("Update Interval") {
-                Picker("Preset", selection: $trackingSettings.intervalPreset) {
-                    ForEach(IntervalPreset.allCases, id: \.self) { preset in
-                        Text(preset.displayName).tag(preset)
+        ScrollView {
+            VStack(spacing: 16) {
+                // Section header
+                HStack {
+                    Image(systemName: "timer")
+                        .font(.title3)
+                        .foregroundColor(.green)
+                        .frame(width: 32, height: 32)
+                        .background(Color.green.opacity(0.15))
+                        .cornerRadius(8)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Update Frequency")
+                            .font(.headline)
+                        Text("Choose how often to log your location")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+
+                    Spacer()
                 }
-                .onChange(of: trackingSettings.intervalPreset) { _, _ in
-                    HapticManager.shared.selectionChanged()
+                .padding(.horizontal)
+                .padding(.top, 16)
+
+                // Frequency cards - using displayedPresets (5 options)
+                ForEach(IntervalPreset.displayedPresets, id: \.self) { preset in
+                    FrequencyDetailCard(
+                        preset: preset,
+                        isSelected: trackingSettings.intervalPreset == preset,
+                        isExpanded: trackingSettings.intervalPreset == preset,
+                        onSelect: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                trackingSettings.intervalPreset = preset
+                            }
+                        }
+                    )
+                    .padding(.horizontal)
                 }
 
+                // Custom interval slider (shown when Custom is selected)
                 if trackingSettings.intervalPreset == .custom {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Custom Interval")
-                            Spacer()
-                            Text(formatInterval(trackingSettings.customIntervalSeconds))
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { log10(trackingSettings.customIntervalSeconds) },
-                                set: { trackingSettings.customIntervalSeconds = pow(10, $0) }
-                            ),
-                            in: log10(5)...log10(3600)
-                        )
-                        .onChange(of: trackingSettings.customIntervalSeconds) { _, _ in
-                            HapticManager.shared.sliderChanged()
-                        }
-                    }
+                    CustomIntervalSlider(
+                        customInterval: $trackingSettings.customIntervalSeconds
+                    )
+                    .padding(.horizontal)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
                 }
+
+                // Footer tip
+                footerTip
+                    .padding(.horizontal)
+                    .padding(.bottom, 100)
             }
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("Update Frequency")
         .onAppear {
             trackingSettings = settingsManager.trackingSettings
@@ -1056,11 +1367,349 @@ struct TrackingSettingsView: View {
         }
     }
 
+    private var footerTip: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "lightbulb.fill")
+                .font(.title3)
+                .foregroundColor(.yellow)
+
+            Text("Tip: Enable Smart Mode in Battery Settings to automatically reduce frequency when battery is low.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.yellow.opacity(0.1))
+        )
+    }
+}
+
+// MARK: - Frequency Detail Card Components
+
+extension IntervalPreset {
+    /// Accent color for the detail card
+    var accentColor: Color {
+        switch self {
+        case .realtime: return .green
+        case .high: return .cyan
+        case .normal: return .blue
+        case .batterySaver: return .orange
+        case .extended: return .indigo
+        case .minimal: return .purple
+        case .custom: return .pink
+        }
+    }
+}
+
+struct PathPreviewShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        // More realistic road-like path with multiple turns
+        let h = rect.height
+        let w = rect.width
+
+        path.move(to: CGPoint(x: 8, y: h * 0.7))
+        path.addLine(to: CGPoint(x: w * 0.15, y: h * 0.7))
+        path.addQuadCurve(to: CGPoint(x: w * 0.25, y: h * 0.3), control: CGPoint(x: w * 0.2, y: h * 0.5))
+        path.addLine(to: CGPoint(x: w * 0.4, y: h * 0.3))
+        path.addQuadCurve(to: CGPoint(x: w * 0.5, y: h * 0.7), control: CGPoint(x: w * 0.45, y: h * 0.5))
+        path.addLine(to: CGPoint(x: w * 0.65, y: h * 0.7))
+        path.addQuadCurve(to: CGPoint(x: w * 0.8, y: h * 0.35), control: CGPoint(x: w * 0.72, y: h * 0.5))
+        path.addLine(to: CGPoint(x: w - 8, y: h * 0.35))
+
+        return path
+    }
+}
+
+struct PathPreviewView: View {
+    let dotCount: Int
+    let pathColor: Color
+    let isSelected: Bool
+
+    // Deviation amount - more dots = less deviation (smoother path)
+    // 12 dots (10s) = nearly 0 deviation, 2 dots (30min) = max deviation
+    private var deviationAmount: CGFloat {
+        let maxDeviation: CGFloat = 10
+        let normalized = CGFloat(12 - dotCount) / 10.0
+        return max(0, normalized * maxDeviation)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Ideal path (faint dashed reference line showing actual route)
+                PathPreviewShape()
+                    .stroke(
+                        Color.gray.opacity(0.25),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4])
+                    )
+
+                // Tracked path (straight lines between data points - gets jagged with fewer)
+                Path { path in
+                    let points = getPathPoints(in: geometry.size)
+                    guard let first = points.first else { return }
+                    path.move(to: first)
+                    for point in points.dropFirst() {
+                        path.addLine(to: point)
+                    }
+                }
+                .stroke(
+                    pathColor,
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+                )
+
+                // Data point dots
+                ForEach(Array(getPathPoints(in: geometry.size).enumerated()), id: \.offset) { _, point in
+                    Circle()
+                        .fill(pathColor)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: pathColor.opacity(0.6), radius: 2)
+                        .position(point)
+                }
+            }
+        }
+        .frame(height: 55)
+    }
+
+    // Sample points along the road-like path
+    private func getPathPoints(in size: CGSize) -> [CGPoint] {
+        let w = size.width
+        let h = size.height
+
+        // Define key waypoints along the road (matching PathPreviewShape)
+        let waypoints: [CGPoint] = [
+            CGPoint(x: 8, y: h * 0.7),
+            CGPoint(x: w * 0.15, y: h * 0.7),
+            CGPoint(x: w * 0.2, y: h * 0.5),   // curve control area
+            CGPoint(x: w * 0.25, y: h * 0.3),
+            CGPoint(x: w * 0.4, y: h * 0.3),
+            CGPoint(x: w * 0.45, y: h * 0.5),  // curve control area
+            CGPoint(x: w * 0.5, y: h * 0.7),
+            CGPoint(x: w * 0.65, y: h * 0.7),
+            CGPoint(x: w * 0.72, y: h * 0.5),  // curve control area
+            CGPoint(x: w * 0.8, y: h * 0.35),
+            CGPoint(x: w - 8, y: h * 0.35)
+        ]
+
+        // Sample points based on dotCount
+        var result: [CGPoint] = []
+        let totalWaypoints = waypoints.count
+
+        for i in 0..<dotCount {
+            let t = CGFloat(i) / CGFloat(max(dotCount - 1, 1))
+            let waypointIndex = min(Int(t * CGFloat(totalWaypoints - 1)), totalWaypoints - 2)
+            let localT = (t * CGFloat(totalWaypoints - 1)) - CGFloat(waypointIndex)
+
+            let p1 = waypoints[waypointIndex]
+            let p2 = waypoints[min(waypointIndex + 1, totalWaypoints - 1)]
+
+            // Interpolate between waypoints
+            var point = CGPoint(
+                x: p1.x + (p2.x - p1.x) * localT,
+                y: p1.y + (p2.y - p1.y) * localT
+            )
+
+            // Add deviation for middle points (simulates cutting corners with fewer data points)
+            if i > 0 && i < dotCount - 1 {
+                let seed = Double(i * 7 + 3)
+                point.x += sin(seed * 1.3) * deviationAmount
+                point.y += cos(seed * 2.1) * deviationAmount * 0.8
+                // Keep in bounds
+                point.y = max(5, min(h - 5, point.y))
+            }
+
+            result.append(point)
+        }
+
+        return result
+    }
+}
+
+struct FrequencyInfoPill: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(color)
+            Text(value)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.primary)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(UIColor.tertiarySystemGroupedBackground))
+        )
+    }
+}
+
+struct FrequencyDetailCard: View {
+    let preset: IntervalPreset
+    let isSelected: Bool
+    let isExpanded: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            headerSection
+            if isExpanded {
+                detailSection
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(UIColor.secondarySystemGroupedBackground))
+                .shadow(
+                    color: isSelected ? preset.accentColor.opacity(0.3) : Color.black.opacity(0.05),
+                    radius: isSelected ? 8 : 4,
+                    x: 0,
+                    y: isSelected ? 4 : 2
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isSelected ? preset.accentColor : Color.clear, lineWidth: 2)
+        )
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isExpanded)
+        .onTapGesture {
+            HapticManager.shared.selectionChanged()
+            onSelect()
+        }
+    }
+
+    private var headerSection: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(preset.accentColor.opacity(0.3), lineWidth: 2)
+                    .frame(width: 24, height: 24)
+                if isSelected {
+                    Circle()
+                        .fill(preset.accentColor)
+                        .frame(width: 16, height: 16)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preset.displayName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(preset == .custom ? "Your interval" : "updates every \(preset.shortName)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: preset.batteryIcon)
+                    .font(.system(size: 12))
+                    .foregroundColor(preset.accentColor)
+                Text(preset.batteryImpact)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(preset.accentColor)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(preset.accentColor.opacity(0.15)))
+        }
+        .padding()
+    }
+
+    private var detailSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Divider().padding(.horizontal)
+            Text(preset.cardDescription)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                        .font(.caption)
+                        .foregroundColor(preset.accentColor)
+                    Text("Path Accuracy Preview")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                PathPreviewView(
+                    dotCount: preset.dotDensity,
+                    pathColor: preset.accentColor,
+                    isSelected: isSelected
+                )
+                .padding(.horizontal)
+            }
+            HStack(spacing: 12) {
+                FrequencyInfoPill(icon: preset.batteryIcon, label: "Battery", value: preset.batteryImpact, color: preset.accentColor)
+                FrequencyInfoPill(icon: "chart.line.uptrend.xyaxis", label: "Accuracy", value: preset.accuracyLabel, color: preset.accentColor)
+                FrequencyInfoPill(icon: "timer", label: "Interval", value: preset.shortName, color: preset.accentColor)
+            }
+            .padding(.horizontal)
+            .padding(.bottom)
+        }
+    }
+}
+
+struct CustomIntervalSlider: View {
+    @Binding var customInterval: TimeInterval
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Custom Interval")
+                    .font(.headline)
+                Spacer()
+                Text(formatInterval(customInterval))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.pink)
+            }
+            Slider(
+                value: Binding(
+                    get: { log10(customInterval) },
+                    set: { customInterval = pow(10, $0) }
+                ),
+                in: log10(5)...log10(3600)
+            )
+            .tint(.pink)
+            .onChange(of: customInterval) { _, _ in
+                HapticManager.shared.sliderChanged()
+            }
+            HStack {
+                Text("5s").font(.caption).foregroundColor(.secondary)
+                Spacer()
+                Text("60m").font(.caption).foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(UIColor.secondarySystemGroupedBackground))
+        )
+    }
+
     private func formatInterval(_ seconds: TimeInterval) -> String {
         if seconds < 60 {
             return "\(Int(seconds))s"
         } else if seconds < 3600 {
-            return "\(Int(seconds / 60))m"
+            let mins = Int(seconds / 60)
+            let secs = Int(seconds) % 60
+            return secs == 0 ? "\(mins)m" : "\(mins)m \(secs)s"
         } else {
             return "\(Int(seconds / 3600))h"
         }

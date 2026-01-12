@@ -365,6 +365,10 @@ class TrackingHistoryManager: ObservableObject {
         clearRecoverySession()  // Remove auto-save data since session is complete
         trimOldSessions()
         saveSessions()
+
+        // Sync the completed session to iCloud
+        iCloudSyncManager.shared.syncSessionNow(session)
+
         print("[TrackingHistory] Ended session: \(session.id) - \(session.pointsCount) points, \(session.formattedDistance)")
     }
 

@@ -373,28 +373,19 @@ struct TabPicker: UIViewRepresentable {
 
 enum AppTab: Int, CaseIterable {
     case stats = 0
-    case cities = 1
-    case places = 2
-    case track = 3
-    case countries = 4
-    case ukCities = 5
-    case insights = 6
-    case settings = 7
+    case visited = 1      // Merged Cities + Countries
+    case track = 2
+    case insights = 3
+    case settings = 4
 
     var tabItem: TabItem {
         switch self {
         case .stats:
             return TabItem(title: "Stats", icon: "chart.bar.fill", color: .blue, gradientColors: [.blue, .cyan])
-        case .cities:
-            return TabItem(title: "Cities", icon: "building.2.fill", color: .purple, gradientColors: [.purple, .indigo])
-        case .places:
-            return TabItem(title: "Places", icon: "mappin.circle.fill", color: .orange, gradientColors: [.orange, .yellow])
+        case .visited:
+            return TabItem(title: "Visited", icon: "globe.americas.fill", color: .teal, gradientColors: [.teal, .purple])
         case .track:
             return TabItem(title: "Track", icon: "location.fill", color: .green, gradientColors: [.green, .mint])
-        case .countries:
-            return TabItem(title: "Countries", icon: "globe.americas.fill", color: .teal, gradientColors: [.teal, .cyan])
-        case .ukCities:
-            return TabItem(title: "UK", icon: "map.fill", color: .indigo, gradientColors: [.indigo, .blue])
         case .insights:
             return TabItem(title: "Insights", icon: "chart.pie.fill", color: .pink, gradientColors: [.pink, .red])
         case .settings:

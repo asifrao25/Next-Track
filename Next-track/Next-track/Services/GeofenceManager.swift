@@ -295,6 +295,9 @@ class GeofenceManager: NSObject, ObservableObject {
         do {
             let data = try JSONEncoder().encode(zonesToSave)
             UserDefaults.standard.set(data, forKey: storageKey)
+
+            // Sync to iCloud
+            iCloudSyncManager.shared.syncGeofencesNow()
         } catch {
             print("[GeofenceManager] ERROR: Failed to save zones: \(error.localizedDescription)")
         }

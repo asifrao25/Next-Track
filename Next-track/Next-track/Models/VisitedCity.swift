@@ -20,6 +20,7 @@ struct VisitedCity: Codable, Identifiable, Equatable {
     var lastVisitDate: Date
     var visitCount: Int                 // Number of separate visits (sessions)
     var totalPointsRecorded: Int        // Total location points in this city
+    var isManuallyAdded: Bool           // True if added via search or map long-press
 
     // Representative coordinate (city center or first visit location)
     var latitude: Double
@@ -87,7 +88,8 @@ struct VisitedCity: Codable, Identifiable, Equatable {
         visitCount: Int = 1,
         totalPointsRecorded: Int = 1,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        isManuallyAdded: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -100,6 +102,32 @@ struct VisitedCity: Codable, Identifiable, Equatable {
         self.totalPointsRecorded = totalPointsRecorded
         self.latitude = latitude
         self.longitude = longitude
+        self.isManuallyAdded = isManuallyAdded
+    }
+
+    // MARK: - Codable (backwards compatibility)
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, state, country, countryCode
+        case firstVisitDate, lastVisitDate, visitCount, totalPointsRecorded
+        case latitude, longitude, isManuallyAdded
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        state = try container.decodeIfPresent(String.self, forKey: .state)
+        country = try container.decode(String.self, forKey: .country)
+        countryCode = try container.decodeIfPresent(String.self, forKey: .countryCode)
+        firstVisitDate = try container.decode(Date.self, forKey: .firstVisitDate)
+        lastVisitDate = try container.decode(Date.self, forKey: .lastVisitDate)
+        visitCount = try container.decode(Int.self, forKey: .visitCount)
+        totalPointsRecorded = try container.decode(Int.self, forKey: .totalPointsRecorded)
+        latitude = try container.decode(Double.self, forKey: .latitude)
+        longitude = try container.decode(Double.self, forKey: .longitude)
+        // Default to false for existing cities without this field
+        isManuallyAdded = try container.decodeIfPresent(Bool.self, forKey: .isManuallyAdded) ?? false
     }
 
     // MARK: - Equatable

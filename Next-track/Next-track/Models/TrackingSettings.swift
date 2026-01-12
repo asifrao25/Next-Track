@@ -17,6 +17,11 @@ enum IntervalPreset: String, CaseIterable, Codable {
     case minimal = "30m"
     case custom = "Custom"
 
+    /// Presets displayed in the new card-based UI (5 options)
+    static var displayedPresets: [IntervalPreset] {
+        [.realtime, .normal, .batterySaver, .minimal, .custom]
+    }
+
     var seconds: TimeInterval {
         switch self {
         case .realtime: return 10
@@ -38,6 +43,84 @@ enum IntervalPreset: String, CaseIterable, Codable {
         case .extended: return "15 min (Extended)"
         case .minimal: return "30 min (Minimal)"
         case .custom: return "Custom"
+        }
+    }
+
+    /// Short name for display
+    var shortName: String {
+        switch self {
+        case .realtime: return "10s"
+        case .high: return "30s"
+        case .normal: return "1 min"
+        case .batterySaver: return "5 min"
+        case .extended: return "15 min"
+        case .minimal: return "30 min"
+        case .custom: return "Custom"
+        }
+    }
+
+    /// Description for detail card
+    var cardDescription: String {
+        switch self {
+        case .realtime: return "Real-time tracking with the smoothest, most accurate path on the map"
+        case .high: return "High frequency tracking with excellent path detail"
+        case .normal: return "Balanced tracking with good accuracy and reasonable battery use"
+        case .batterySaver: return "Extended battery life with moderate path accuracy for longer trips"
+        case .extended: return "Extended intervals with minimal battery impact"
+        case .minimal: return "Maximum battery savings with basic waypoint tracking"
+        case .custom: return "Set your own interval for fine-tuned control over tracking frequency"
+        }
+    }
+
+    /// Estimated battery impact percentage
+    var batteryImpact: String {
+        switch self {
+        case .realtime: return "~10%"
+        case .high: return "~7%"
+        case .normal: return "~5%"
+        case .batterySaver: return "~2%"
+        case .extended: return "~1%"
+        case .minimal: return "<1%"
+        case .custom: return "Varies"
+        }
+    }
+
+    /// Number of dots to show in path preview graphic
+    var dotDensity: Int {
+        switch self {
+        case .realtime: return 12
+        case .high: return 10
+        case .normal: return 8
+        case .batterySaver: return 4
+        case .extended: return 3
+        case .minimal: return 2
+        case .custom: return 6
+        }
+    }
+
+    /// Accuracy label for detail card
+    var accuracyLabel: String {
+        switch self {
+        case .realtime: return "Excellent"
+        case .high: return "Very Good"
+        case .normal: return "Good"
+        case .batterySaver: return "Moderate"
+        case .extended: return "Basic"
+        case .minimal: return "Minimal"
+        case .custom: return "Custom"
+        }
+    }
+
+    /// Battery icon for detail card
+    var batteryIcon: String {
+        switch self {
+        case .realtime: return "battery.25"
+        case .high: return "battery.25"
+        case .normal: return "battery.50"
+        case .batterySaver: return "battery.75"
+        case .extended: return "battery.100"
+        case .minimal: return "battery.100"
+        case .custom: return "battery.50"
         }
     }
 }

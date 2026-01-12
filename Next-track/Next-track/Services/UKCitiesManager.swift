@@ -651,6 +651,9 @@ class UKCitiesManager: ObservableObject {
             let data = try JSONEncoder().encode(visitedCities)
             UserDefaults.standard.set(data, forKey: storageKey)
             print("[UKCitiesManager] Saved \(visitedCities.count) cities")
+
+            // Sync to iCloud
+            iCloudSyncManager.shared.syncUKCitiesNow()
         } catch {
             print("[UKCitiesManager] Failed to save: \(error)")
         }

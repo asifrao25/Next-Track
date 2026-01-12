@@ -20,8 +20,9 @@ struct NextTrackApp: App {
     /// Whether the user has completed onboarding
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
-    /// Whether to show the splash screen
+    /// Splash animation state
     @State private var showSplash = true
+    @State private var shatter = false
 
     init() {
         // Register background tasks
@@ -32,7 +33,7 @@ struct NextTrackApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                // Main content (loads in background while splash shows)
+                // Main content - always there
                 Group {
                     if hasCompletedOnboarding {
                         MainView()
@@ -44,7 +45,6 @@ struct NextTrackApp: App {
                             .environmentObject(errorStateManager)
                             .withErrorBanner()
                             .onAppear {
-                                // Request location permissions if not already granted
                                 if !locationManager.hasAnyPermission {
                                     locationManager.requestPermissions()
                                 }
@@ -58,19 +58,24 @@ struct NextTrackApp: App {
                             .environmentObject(settingsManager)
                     }
                 }
-                .opacity(showSplash ? 0 : 1)
 
-                // Splash screen overlay
+                // Splash with shatter effect
                 if showSplash {
-                    SplashScreenView()
-                        .transition(.opacity)
-                        .zIndex(1)
+                    ShatterView(shatter: shatter) {
+                        SplashScreenView()
+                    }
+                    .ignoresSafeArea()
+                    .zIndex(1)
                 }
             }
             .onAppear {
-                // Dismiss splash after 4 seconds (video fades out mid-playback)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                    withAnimation(.easeInOut(duration: 0.5)) {
+                // Video plays 3.5 sec, then shatter over 3 sec
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                    shatter = true
+
+                    // Haptic + cleanup after shatter completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        HapticManager.shared.success()
                         showSplash = false
                     }
                 }

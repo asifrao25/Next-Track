@@ -8,6 +8,7 @@
 
 import SwiftUI
 import CoreLocation
+import UniformTypeIdentifiers
 
 /// Main onboarding container with paged navigation
 struct OnboardingView: View {
@@ -18,12 +19,12 @@ struct OnboardingView: View {
     @StateObject private var locationManager = LocationManager.shared
     @StateObject private var settingsManager = SettingsManager.shared
 
-    private let totalPages = 4
+    private let totalPages = 5
 
     var body: some View {
         ZStack {
-            // Background
-            Color(.systemBackground)
+            // Dark background (pages have their own gradients)
+            Color(red: 0.05, green: 0.05, blue: 0.1)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -40,9 +41,13 @@ struct OnboardingView: View {
 
                     ServerSetupPage(
                         settingsManager: settingsManager,
-                        onComplete: completeOnboarding
+                        onComplete: { currentPage = 4 },  // Go to restore page
+                        onSkipToApp: completeOnboarding   // Skip directly to app
                     )
                     .tag(3)
+
+                    RestoreDataPage(onComplete: completeOnboarding)
+                        .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
@@ -53,7 +58,7 @@ struct OnboardingView: View {
                     HStack(spacing: 8) {
                         ForEach(0..<totalPages, id: \.self) { index in
                             Circle()
-                                .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
+                                .fill(index == currentPage ? Color.cyan : Color.white.opacity(0.3))
                                 .frame(width: 8, height: 8)
                                 .animation(.easeInOut, value: currentPage)
                         }
@@ -68,7 +73,7 @@ struct OnboardingView: View {
                                     Image(systemName: "chevron.left")
                                     Text("Back")
                                 }
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.white.opacity(0.8))
                             }
                             .accessibilityLabel("Go back")
                         }
@@ -84,7 +89,13 @@ struct OnboardingView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 12)
-                                .background(Color.accentColor)
+                                .background(
+                                    LinearGradient(
+                                        colors: [.cyan, .blue],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
                                 .cornerRadius(25)
                             }
                             .accessibilityLabel("Continue to next page")
@@ -121,56 +132,64 @@ struct OnboardingView: View {
 struct WelcomePage: View {
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            // Travel-themed gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 0.1, green: 0.1, blue: 0.2),
+                    Color(red: 0.05, green: 0.15, blue: 0.25),
+                    Color(red: 0.1, green: 0.2, blue: 0.3)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            // App icon
-            Image(systemName: "location.circle.fill")
-                .font(.system(size: 100))
-                .foregroundColor(.accentColor)
-                .accessibilityHidden(true)
+            VStack(spacing: 24) {
+                // Header Image
+                OnboardingHeader()
 
-            // Welcome text
-            VStack(spacing: 12) {
-                Text("Welcome to")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
+                Spacer()
 
-                Text("Next Track")
-                    .font(.largeTitle.bold())
+                // Tagline
+                VStack(spacing: 8) {
+                    Text("Your Journey, Remembered")
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
 
-                Text("Your personal location tracker")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
+                    Text("Track everywhere you've been")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
+                Spacer()
+
+                // Feature list
+                VStack(spacing: 16) {
+                    FeatureRow(
+                        icon: "location.fill",
+                        title: "Track Your Journey",
+                        description: "Record your location in real-time"
+                    )
+
+                    FeatureRow(
+                        icon: "globe.europe.africa.fill",
+                        title: "Countries & Cities",
+                        description: "See everywhere you've traveled"
+                    )
+
+                    FeatureRow(
+                        icon: "icloud.fill",
+                        title: "Sync & Backup",
+                        description: "Never lose your travel history"
+                    )
+                }
+                .padding(.horizontal, 32)
+
+                Spacer()
             }
-
-            Spacer()
-
-            // Description
-            VStack(spacing: 16) {
-                FeatureRow(
-                    icon: "location.fill",
-                    title: "Track Your Journey",
-                    description: "Record your location in real-time"
-                )
-
-                FeatureRow(
-                    icon: "cloud.fill",
-                    title: "Sync to Nextcloud",
-                    description: "Stream data to your PhoneTrack server"
-                )
-
-                FeatureRow(
-                    icon: "battery.100",
-                    title: "Battery Optimized",
-                    description: "Smart tracking that saves power"
-                )
-            }
-            .padding(.horizontal, 32)
-
-            Spacer()
+            .padding()
         }
-        .padding()
     }
 }
 
@@ -179,48 +198,64 @@ struct WelcomePage: View {
 struct FeaturesPage: View {
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            // Sunset gradient for features
+            LinearGradient(
+                colors: [
+                    Color(red: 0.15, green: 0.1, blue: 0.2),
+                    Color(red: 0.2, green: 0.1, blue: 0.15),
+                    Color(red: 0.15, green: 0.08, blue: 0.12)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            Text("What You Can Do")
-                .font(.largeTitle.bold())
+            VStack(spacing: 24) {
+                // Header Image
+                OnboardingHeader()
 
-            Spacer()
+                Text("What You Can Do")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
 
-            VStack(spacing: 20) {
-                FeatureCard(
-                    icon: "map.fill",
-                    color: .blue,
-                    title: "Places",
-                    description: "Automatically detect and track places you visit frequently"
-                )
+                Spacer()
 
-                FeatureCard(
-                    icon: "globe.europe.africa.fill",
-                    color: .green,
-                    title: "Countries & Cities",
-                    description: "Keep track of cities and countries you've been to"
-                )
+                VStack(spacing: 16) {
+                    FeatureCard(
+                        icon: "map.fill",
+                        color: .cyan,
+                        title: "Places",
+                        description: "Automatically detect places you visit"
+                    )
 
-                FeatureCard(
-                    icon: "location.viewfinder",
-                    color: .orange,
-                    title: "Geofences",
-                    description: "Auto-start tracking when entering specific zones"
-                )
+                    FeatureCard(
+                        icon: "globe.europe.africa.fill",
+                        color: .green,
+                        title: "Countries & Cities",
+                        description: "Track cities and countries visited"
+                    )
 
-                FeatureCard(
-                    icon: "square.and.arrow.up.fill",
-                    color: .purple,
-                    title: "Export",
-                    description: "Export your data as GPX files automatically"
-                )
+                    FeatureCard(
+                        icon: "location.viewfinder",
+                        color: .orange,
+                        title: "Geofences",
+                        description: "Auto-start tracking in specific zones"
+                    )
+
+                    FeatureCard(
+                        icon: "square.and.arrow.up.fill",
+                        color: .purple,
+                        title: "Export & Backup",
+                        description: "Export data as GPX or JSON"
+                    )
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
             }
-            .padding(.horizontal, 24)
-
-            Spacer()
+            .padding()
         }
-        .padding()
     }
 }
 
@@ -231,98 +266,107 @@ struct LocationPermissionPage: View {
     @ObservedObject var locationManager: LocationManager
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            // Ocean/sky gradient
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.1, blue: 0.2),
+                    Color(red: 0.1, green: 0.15, blue: 0.3),
+                    Color(red: 0.05, green: 0.2, blue: 0.35)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color.blue.opacity(0.15))
-                    .frame(width: 120, height: 120)
+            VStack(spacing: 24) {
+                // Header Image
+                OnboardingHeader()
 
-                Image(systemName: "location.fill")
-                    .font(.system(size: 50))
-                    .foregroundColor(.blue)
-            }
-            .accessibilityHidden(true)
+                // Title
+                Text("Location Access")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
 
-            // Title
-            Text("Location Access")
-                .font(.largeTitle.bold())
+                // Explanation
+                VStack(spacing: 16) {
+                    Text("Been There needs continuous location access to track your journeys.")
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.white.opacity(0.8))
 
-            // Explanation
-            VStack(spacing: 16) {
-                Text("Next Track needs continuous location access to track your journeys, even when the app is in the background.")
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-
-                // Why "Always" is needed
-                VStack(alignment: .leading, spacing: 12) {
-                    WhyRow(text: "Track your journey while you walk, drive, or travel")
-                    WhyRow(text: "Continue tracking when you switch apps")
-                    WhyRow(text: "Enable geofences to auto-start tracking")
-                    WhyRow(text: "Detect places you visit automatically")
-                }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(12)
-            }
-            .padding(.horizontal, 24)
-
-            Spacer()
-
-            // Status and button
-            VStack(spacing: 16) {
-                if locationManager.hasAlwaysPermission {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Always-on location enabled")
-                            .foregroundColor(.green)
+                    // Why "Always" is needed
+                    VStack(alignment: .leading, spacing: 12) {
+                        WhyRow(text: "Track while you walk, drive, or travel")
+                        WhyRow(text: "Continue when you switch apps")
+                        WhyRow(text: "Auto-start tracking with geofences")
+                        WhyRow(text: "Detect places automatically")
                     }
-                    .font(.headline)
-                } else if locationManager.hasAnyPermission {
-                    VStack(spacing: 8) {
+                    .padding()
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+
+                // Status and button
+                VStack(spacing: 16) {
+                    if locationManager.hasAlwaysPermission {
                         HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Limited location access")
-                                .foregroundColor(.orange)
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Always-on location enabled")
+                                .foregroundColor(.green)
                         }
                         .font(.headline)
+                    } else if locationManager.hasAnyPermission {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Limited location access")
+                                    .foregroundColor(.orange)
+                            }
+                            .font(.headline)
 
-                        Text("For best experience, enable 'Always' in Settings")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            Text("For best experience, enable 'Always' in Settings")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.7))
 
-                        Button(action: openSettings) {
-                            Text("Open Settings")
+                            Button(action: openSettings) {
+                                Text("Open Settings")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 32)
+                                    .padding(.vertical, 14)
+                                    .background(Color.orange)
+                                    .cornerRadius(25)
+                            }
+                        }
+                    } else {
+                        Button(action: requestPermission) {
+                            Text("Enable Location")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 14)
-                                .background(Color.orange)
+                                .background(
+                                    LinearGradient(
+                                        colors: [.cyan, .blue],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
                                 .cornerRadius(25)
                         }
+                        .accessibilityLabel("Enable location access")
                     }
-                } else {
-                    Button(action: requestPermission) {
-                        Text("Enable Location")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 14)
-                            .background(Color.accentColor)
-                            .cornerRadius(25)
-                    }
-                    .accessibilityLabel("Enable location access")
-                    .accessibilityHint("Opens the location permission dialog")
                 }
-            }
 
-            Spacer()
+                Spacer()
+            }
+            .padding()
         }
-        .padding()
     }
 
     private func requestPermission() {
@@ -345,120 +389,191 @@ struct ServerSetupPage: View {
     @State private var showingManualSetup = false
 
     var onComplete: () -> Void
+    var onSkipToApp: (() -> Void)?  // Skip directly to app
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            // Purple/teal gradient for server
+            LinearGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.08, blue: 0.2),
+                    Color(red: 0.1, green: 0.12, blue: 0.25),
+                    Color(red: 0.08, green: 0.15, blue: 0.22)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color.purple.opacity(0.15))
-                    .frame(width: 120, height: 120)
+            VStack(spacing: 24) {
+                // Header Image
+                OnboardingHeader()
 
-                Image(systemName: "server.rack")
-                    .font(.system(size: 50))
-                    .foregroundColor(.purple)
-            }
-            .accessibilityHidden(true)
+                // Title
+                Text("Connect Your Server")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
 
-            // Title
-            Text("Connect Your Server")
-                .font(.largeTitle.bold())
+                // Optional badge
+                Text("OPTIONAL")
+                    .font(.caption.bold())
+                    .foregroundColor(.cyan)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Color.cyan.opacity(0.2))
+                    .cornerRadius(8)
 
-            // Explanation
-            Text("Connect to your Nextcloud PhoneTrack server to start streaming your location data.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                // Explanation
+                Text("Connect to your Nextcloud PhoneTrack server to stream location data. You can set this up later in Settings.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.horizontal, 24)
+
+                Spacer()
+
+                // Setup options
+                VStack(spacing: 16) {
+                    // QR Code option
+                    Button(action: { showingQRScanner = true }) {
+                        HStack {
+                            Image(systemName: "qrcode.viewfinder")
+                                .font(.title2)
+                                .foregroundColor(.cyan)
+                            VStack(alignment: .leading) {
+                                Text("Scan QR Code")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Quick setup from PhoneTrack")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+
+                    // Manual setup option
+                    Button(action: { showingManualSetup = true }) {
+                        HStack {
+                            Image(systemName: "keyboard")
+                                .font(.title2)
+                                .foregroundColor(.purple)
+                            VStack(alignment: .leading) {
+                                Text("Manual Setup")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Enter server details manually")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                }
                 .padding(.horizontal, 24)
 
-            Spacer()
+                Spacer()
 
-            // Setup options
-            VStack(spacing: 16) {
-                // QR Code option
-                Button(action: { showingQRScanner = true }) {
-                    HStack {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.title2)
-                        VStack(alignment: .leading) {
-                            Text("Scan QR Code")
+                // Bottom buttons
+                VStack(spacing: 16) {
+                    if settingsManager.serverConfig != nil {
+                        // Server configured - show Continue button
+                        Button(action: onComplete) {
+                            Text("Continue")
                                 .font(.headline)
-                            Text("Quick setup from PhoneTrack")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    LinearGradient(
+                                        colors: [.purple, .cyan],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(25)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
+                        .padding(.horizontal, 24)
                     }
-                    .foregroundColor(.primary)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
-                }
-                .accessibilityLabel("Scan QR code for quick setup")
 
-                // Manual setup option
-                Button(action: { showingManualSetup = true }) {
-                    HStack {
-                        Image(systemName: "keyboard")
-                            .font(.title2)
-                        VStack(alignment: .leading) {
-                            Text("Manual Setup")
-                                .font(.headline)
-                            Text("Enter server details manually")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                    // Skip button - always visible and prominent
+                    Button(action: {
+                        if let skipToApp = onSkipToApp {
+                            skipToApp()
+                        } else {
+                            onComplete()
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .foregroundColor(.primary)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
-                }
-                .accessibilityLabel("Set up manually with server URL and token")
-            }
-            .padding(.horizontal, 24)
-
-            Spacer()
-
-            // Skip / Get Started button
-            VStack(spacing: 12) {
-                if settingsManager.serverConfig != nil {
-                    Button(action: onComplete) {
-                        Text("Get Started")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.accentColor)
-                            .cornerRadius(25)
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.right.circle.fill")
+                            Text("Skip & Start Using App")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white.opacity(0.15))
+                        .cornerRadius(25)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
                     }
                     .padding(.horizontal, 24)
-                    .accessibilityLabel("Complete setup and start using the app")
+
+                    Text("You can configure server later in Settings")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.5))
                 }
 
-                Button(action: onComplete) {
-                    Text(settingsManager.serverConfig != nil ? "I'll set up later" : "Skip for now")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .accessibilityLabel("Skip server setup")
+                Spacer()
             }
-
-            Spacer()
+            .padding()
         }
-        .padding()
         .sheet(isPresented: $showingQRScanner) {
             QRScannerSheet(settingsManager: settingsManager, isPresented: $showingQRScanner)
         }
         .sheet(isPresented: $showingManualSetup) {
             ManualSetupSheet(settingsManager: settingsManager, isPresented: $showingManualSetup)
         }
+    }
+}
+
+// MARK: - Onboarding Header
+
+struct OnboardingHeader: View {
+    var body: some View {
+        Image("HeaderImage")
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(height: 120)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.4), .cyan.opacity(0.3), .white.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            )
+            .shadow(color: .cyan.opacity(0.3), radius: 15, x: 0, y: 5)
+            .shadow(color: .blue.opacity(0.2), radius: 25, x: 0, y: 10)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
     }
 }
 
@@ -473,16 +588,17 @@ struct FeatureRow: View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(.accentColor)
+                .foregroundColor(.cyan)
                 .frame(width: 40)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
+                    .foregroundColor(.white)
                 Text(description)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.6))
             }
 
             Spacer()
@@ -501,7 +617,7 @@ struct FeatureCard: View {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.15))
+                    .fill(color.opacity(0.2))
                     .frame(width: 50, height: 50)
 
                 Image(systemName: icon)
@@ -513,15 +629,16 @@ struct FeatureCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
+                    .foregroundColor(.white)
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.6))
             }
 
             Spacer()
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color.white.opacity(0.08))
         .cornerRadius(16)
         .accessibilityElement(children: .combine)
     }
@@ -537,6 +654,7 @@ struct WhyRow: View {
                 .accessibilityHidden(true)
             Text(text)
                 .font(.subheadline)
+                .foregroundColor(.white.opacity(0.9))
         }
     }
 }
@@ -628,6 +746,234 @@ struct ManualSetupSheet: View {
         )
         settingsManager.serverConfig = config
         isPresented = false
+    }
+}
+
+// MARK: - Restore Data Page
+
+struct RestoreDataPage: View {
+    var onComplete: () -> Void
+
+    @StateObject private var backupManager = FullBackupManager.shared
+    @StateObject private var iCloudSync = iCloudSyncManager.shared
+
+    @State private var showRestoreFilePicker = false
+    @State private var showRestoreResult = false
+    @State private var restoreResult: RestoreResult?
+    @State private var isRestoring = false
+    @State private var restoreError: String?
+
+    var body: some View {
+        ZStack {
+            // Teal/green gradient for restore
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.12, blue: 0.15),
+                    Color(red: 0.08, green: 0.18, blue: 0.2),
+                    Color(red: 0.05, green: 0.15, blue: 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                // Header Image
+                OnboardingHeader()
+
+                // Title
+                Text("Restore Your Data")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+
+                // Subtitle
+                Text("Reinstalling? Restore from a backup or sync from iCloud.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.horizontal, 24)
+
+                Spacer()
+
+                // Restore options
+                VStack(spacing: 16) {
+                    // Restore from file
+                    Button(action: { showRestoreFilePicker = true }) {
+                        HStack {
+                            Image(systemName: "doc.zipper")
+                                .font(.title2)
+                                .foregroundColor(.orange)
+                            VStack(alignment: .leading) {
+                                Text("Restore from Backup")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Select a JSON backup file")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            Spacer()
+                            if isRestoring {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    .disabled(isRestoring)
+
+                    // Restore from iCloud
+                    Button(action: restoreFromICloud) {
+                        HStack {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.title2)
+                                .foregroundColor(.cyan)
+                            VStack(alignment: .leading) {
+                                Text("Restore from iCloud")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Sync data from other devices")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            Spacer()
+                            if iCloudSync.isSyncing {
+                                ProgressView()
+                                    .tint(.white)
+                            } else if !iCloudSync.iCloudAvailable {
+                                Text("Unavailable")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                    }
+                    .disabled(!iCloudSync.iCloudAvailable || iCloudSync.isSyncing || isRestoring)
+                }
+                .padding(.horizontal, 24)
+
+                // Error message
+                if let error = restoreError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+
+                Spacer()
+
+                // Divider with "or"
+                HStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(height: 1)
+                    Text("or")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.5))
+                    Rectangle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(height: 1)
+                }
+                .padding(.horizontal, 40)
+
+                // Start Fresh button
+                Button(action: onComplete) {
+                    Text("Start Fresh")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            LinearGradient(
+                                colors: [.teal, .cyan],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(25)
+                }
+                .padding(.horizontal, 24)
+
+                Text("You can always restore later from Settings")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.5))
+
+                Spacer()
+            }
+            .padding()
+        }
+        .fileImporter(
+            isPresented: $showRestoreFilePicker,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileSelection(result)
+        }
+        .alert("Restore Complete", isPresented: $showRestoreResult) {
+            Button("Continue") {
+                onComplete()
+            }
+        } message: {
+            if let result = restoreResult {
+                Text("Restored \(result.totalItemsRestored) items:\n• \(result.sessionsRestored) sessions\n• \(result.countriesRestored) countries\n• \(result.citiesRestored) cities\n• \(result.placesRestored) places")
+            }
+        }
+    }
+
+    private func handleFileSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+
+            guard url.startAccessingSecurityScopedResource() else {
+                restoreError = "Cannot access the selected file"
+                return
+            }
+
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            isRestoring = true
+            restoreError = nil
+
+            do {
+                let data = try Data(contentsOf: url)
+                restoreResult = backupManager.restoreFromBackup(data, mergeMode: .merge)
+                isRestoring = false
+
+                if restoreResult?.success == true {
+                    showRestoreResult = true
+                } else {
+                    restoreError = "Failed to restore backup"
+                }
+            } catch {
+                isRestoring = false
+                restoreError = "Error reading file: \(error.localizedDescription)"
+            }
+
+        case .failure(let error):
+            restoreError = error.localizedDescription
+        }
+    }
+
+    private func restoreFromICloud() {
+        restoreError = nil
+        Task {
+            await iCloudSync.syncAllData()
+
+            await MainActor.run {
+                if iCloudSync.lastSyncDate != nil {
+                    onComplete()
+                }
+            }
+        }
     }
 }
 

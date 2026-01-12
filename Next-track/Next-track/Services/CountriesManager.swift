@@ -432,6 +432,9 @@ class CountriesManager: ObservableObject {
             let data = try JSONEncoder().encode(visitedCountries)
             UserDefaults.standard.set(data, forKey: storageKey)
             print("[CountriesManager] Saved \(visitedCountries.count) countries")
+
+            // Sync to iCloud
+            iCloudSyncManager.shared.syncCountriesNow()
         } catch {
             print("[CountriesManager] Failed to save: \(error)")
         }

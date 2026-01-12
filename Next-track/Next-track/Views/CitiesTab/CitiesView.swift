@@ -10,6 +10,13 @@ import MapKit
 
 struct CitiesView: View {
     @ObservedObject var cityTracker = CityTracker.shared
+    @StateObject private var connectionMonitor = ConnectionMonitor.shared
+    @StateObject private var batteryMonitor = BatteryMonitor.shared
+    @StateObject private var geofenceManager = GeofenceManager.shared
+    @StateObject private var historyManager = TrackingHistoryManager.shared
+    @EnvironmentObject var settingsManager: SettingsManager
+    @EnvironmentObject var phoneTrackAPI: PhoneTrackAPI
+    @EnvironmentObject var locationManager: LocationManager
 
     @State private var selectedSort: CitySortOption = .recentVisit
     @State private var showMapView: Bool = false
@@ -27,55 +34,99 @@ struct CitiesView: View {
         return cities
     }
 
+    // Helper to map PhoneTrackAPI connection status
+    private var mapConnectionStatus: ConnectionStatusType {
+        switch phoneTrackAPI.connectionStatus {
+        case .connected: return .connected
+        case .disconnected: return .disconnected
+        case .error: return .error
+        case .unknown: return .unknown
+        }
+    }
+
+    private var hasIssues: Bool {
+        phoneTrackAPI.connectionStatus == .error ||
+        phoneTrackAPI.connectionStatus == .disconnected ||
+        PendingLocationQueue.shared.count > 0 ||
+        !settingsManager.isConfigured
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
-                if cityTracker.visitedCities.isEmpty {
-                    EmptyStateView()
-                } else if showMapView {
-                    CitiesMapView(cities: filteredCities)
-                } else {
-                    CitiesListView(
-                        cities: filteredCities,
-                        selectedSort: $selectedSort
-                    )
-                }
-            }
-            .navigationTitle("Cities")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 4) {
-                        Text("\(cityTracker.totalCities)")
-                            .font(.headline)
-                            .foregroundColor(.purple)
-                        Text("cities")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        if cityTracker.countriesVisited > 1 {
-                            Text("in")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Text("\(cityTracker.countriesVisited)")
-                                .font(.headline)
-                                .foregroundColor(.purple)
-                            Text("countries")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+            ZStack(alignment: .top) {
+                // Main content
+                Group {
+                    if cityTracker.visitedCities.isEmpty {
+                        VStack {
+                            Color.clear.frame(height: 130)
+                            EmptyStateView()
                         }
+                    } else if showMapView {
+                        VStack(spacing: 0) {
+                            Color.clear.frame(height: 130)
+                            CitiesMapView(cities: filteredCities)
+                        }
+                    } else {
+                        CitiesListView(
+                            cities: filteredCities,
+                            selectedSort: $selectedSort,
+                            headerHeight: 130
+                        )
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            showMapView.toggle()
+                // Fixed header at top
+                VStack(spacing: 0) {
+                    CustomTitleHeaderView(
+                        connectionMonitor: connectionMonitor,
+                        batteryMonitor: batteryMonitor,
+                        isTracking: TrackingStateManager.shared.isTracking,
+                        hasIssues: hasIssues,
+                        pendingCount: PendingLocationQueue.shared.count,
+                        currentZoneName: geofenceManager.currentZone?.name,
+                        connectionStatus: mapConnectionStatus,
+                        lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
+                        todayMiles: historyManager.todaysDistance / 1609.344,
+                        sessionDuration: historyManager.currentSession?.duration ?? 0,
+                        pointsSent: settingsManager.trackingStats.pointsSentToday,
+                        currentElevation: locationManager.currentLocation?.altitude,
+                        accentColor: .blue
+                    )
+                    .padding(.horizontal, 4)
+                }
+
+                // Bottom Map View pill button
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showMapView.toggle()
+                            }
+                            HapticManager.shared.buttonTap()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: showMapView ? "list.bullet" : "map")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text(showMapView ? "List View" : "Map View")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(Color.purple)
+                            )
+                            .shadow(color: .purple.opacity(0.4), radius: 8, x: 0, y: 4)
                         }
-                    } label: {
-                        Image(systemName: showMapView ? "list.bullet" : "map")
-                            .foregroundColor(.purple)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 12) // Flush with tab bar
                     }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
             .searchable(text: $searchText, prompt: "Search cities")
         }
     }
@@ -108,9 +159,19 @@ struct EmptyStateView: View {
 struct CitiesListView: View {
     let cities: [VisitedCity]
     @Binding var selectedSort: CitySortOption
+    var headerHeight: CGFloat = 0
 
     var body: some View {
         List {
+            // Spacer for fixed header
+            if headerHeight > 0 {
+                Section {
+                    Color.clear.frame(height: headerHeight - 40)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
+
             // Sort picker section
             Section {
                 Picker("Sort by", selection: $selectedSort) {

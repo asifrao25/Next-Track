@@ -59,7 +59,7 @@ struct LocationData: Codable, Equatable {
         }
 
         // Add user agent
-        params["useragent"] = "Next-track iOS"
+        params["useragent"] = "Been There iOS"
 
         return params
     }

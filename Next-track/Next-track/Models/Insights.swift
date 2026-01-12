@@ -162,6 +162,7 @@ struct ActivityBreakdown: Codable {
     var formattedStationaryTime: String { formattedTime(stationaryTime) }
     var formattedOnFootTime: String { formattedTime(onFootTime) }
     var formattedVehicleTime: String { formattedTime(vehicleTime) }
+    var formattedTotalTime: String { formattedTime(totalTime) }
 }
 
 // MARK: - Insight Summary

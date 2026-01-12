@@ -10,6 +10,7 @@ import MapKit
 
 struct CountryDetailView: View {
     @ObservedObject var countriesManager = CountriesManager.shared
+    @ObservedObject var cityTracker = CityTracker.shared
     let country: VisitedCountry
 
     @State private var showAddTripSheet = false
@@ -19,6 +20,13 @@ struct CountryDetailView: View {
     // Get the latest country data
     private var currentCountry: VisitedCountry {
         countriesManager.country(for: country.isoCode) ?? country
+    }
+
+    // Get cities for this country
+    private var citiesInCountry: [VisitedCity] {
+        cityTracker.visitedCities
+            .filter { $0.countryCode?.uppercased() == country.isoCode.uppercased() }
+            .sorted { $0.name < $1.name }
     }
 
     var body: some View {
@@ -35,9 +43,9 @@ struct CountryDetailView: View {
                     visitSessionsCard
                 }
 
-                // Auto-detected cities (if any)
-                if currentCountry.isAutoDetected && currentCountry.autoDetectedCityCount > 0 {
-                    autoDetectedCitiesCard
+                // Cities list (if any)
+                if !citiesInCountry.isEmpty {
+                    citiesCard
                 }
 
                 // Manual trips
@@ -189,7 +197,7 @@ struct CountryDetailView: View {
                         )
                     )
 
-                if let activeSession = currentCountry.activeSession {
+                if currentCountry.activeSession != nil {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(Color.green)
@@ -261,22 +269,40 @@ struct CountryDetailView: View {
         )
     }
 
-    // MARK: - Auto-detected Cities Card
+    // MARK: - Cities Card
 
-    private var autoDetectedCitiesCard: some View {
+    private var citiesCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Tracked Cities", systemImage: "building.2.fill")
+                Label("Cities Visited", systemImage: "building.2.fill")
                     .font(.headline)
                 Spacer()
-                Text("\(currentCountry.autoDetectedCityCount)")
+                Text("\(citiesInCountry.count)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.purple)
+                    .fontWeight(.semibold)
             }
 
-            Text("Cities automatically detected from your tracking history")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Cities list with delete buttons
+            ForEach(citiesInCountry) { city in
+                HStack {
+                    CountryCityRowView(city: city)
+
+                    Button {
+                        deleteCity(city)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14))
+                            .foregroundColor(.red.opacity(0.7))
+                            .padding(8)
+                            .background(Circle().fill(Color.red.opacity(0.1)))
+                    }
+                    .buttonStyle(.plain)
+                }
+                if city.id != citiesInCountry.last?.id {
+                    Divider()
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -284,6 +310,11 @@ struct CountryDetailView: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(UIColor.secondarySystemGroupedBackground))
         )
+    }
+
+    private func deleteCity(_ city: VisitedCity) {
+        HapticManager.shared.warning()
+        cityTracker.deleteCity(city.id)
     }
 
     // MARK: - Trips Card
@@ -346,6 +377,60 @@ struct CountryDetailView: View {
 }
 
 // MARK: - Supporting Views
+
+struct CountryCityRowView: View {
+    let city: VisitedCity
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // City icon
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.15))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: city.isManuallyAdded ? "hand.point.up.fill" : "location.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.purple)
+            }
+
+            // City info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(city.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                if let state = city.state {
+                    Text(state)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Visit stats
+            VStack(alignment: .trailing, spacing: 2) {
+                if city.visitCount > 1 {
+                    HStack(spacing: 2) {
+                        Text("\(city.visitCount)")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.purple)
+                        Text("visits")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Text(city.formattedFirstVisit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
 
 struct Badge: View {
     let text: String

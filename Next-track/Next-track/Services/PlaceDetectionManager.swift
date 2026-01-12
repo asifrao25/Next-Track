@@ -672,6 +672,9 @@ class PlaceDetectionManager: ObservableObject {
             let data = try JSONEncoder().encode(detectedPlaces)
             UserDefaults.standard.set(data, forKey: storageKey)
             print("[PlaceDetection] Saved \(detectedPlaces.count) places")
+
+            // Sync to iCloud
+            iCloudSyncManager.shared.syncPlacesNow()
         } catch {
             print("[PlaceDetection] Failed to save places: \(error)")
         }

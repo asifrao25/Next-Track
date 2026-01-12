@@ -30,70 +30,83 @@ struct CustomTitleHeaderView: View {
     var todayMiles: Double = 0.0
     var sessionDuration: TimeInterval = 0
     var pointsSent: Int = 0
+    var currentElevation: Double? = nil  // Current elevation in meters
+    var accentColor: Color = .cyan  // Tab accent color for glow
+
+    // Timer for real-time updates
+    @State private var currentTime = Date()
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         // Unified header pill - image + stats combined
         VStack(spacing: 0) {
-            // Top: Header image
+            // Top: Header image - full width, maintains aspect ratio
             Image("HeaderImage")
                 .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(height: 90)
+                .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .clipped()
-                .opacity(0.7)
+                .opacity(0.75)
 
             // Bottom: Stats bar integrated into pill
-            HStack(spacing: 12) {
-                // Status (HOME/WORK/ACTIVE)
+            // Layout: Status | Last Sent | Distance | Elevation
+            HStack(spacing: 0) {
+                // Status (TRACKING or zone name like HOME/WORK)
                 HStack(spacing: 4) {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 6, height: 6)
+                        .shadow(color: statusColor.opacity(0.8), radius: isTracking ? 4 : 0)
                     Text(statusText)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(statusColor)
                 }
+                .frame(maxWidth: .infinity)
 
                 // Divider
-                Text("•").foregroundColor(.white.opacity(0.3)).font(.system(size: 8))
+                divider
 
-                // Last sent time
-                if let lastSent = lastSuccessfulSend {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.green.opacity(0.8))
-                        Text(formatTimeAgo(lastSent))
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                } else {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.up.circle")
-                            .font(.system(size: 10))
-                            .foregroundColor(.gray)
-                        Text("--")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.5))
-                    }
+                // Last sent time (updates every second)
+                HStack(spacing: 3) {
+                    Image(systemName: lastSuccessfulSend != nil ? "arrow.up.circle.fill" : "arrow.up.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(lastSentColor)
+                    Text(lastSentText)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.8))
                 }
+                .frame(maxWidth: .infinity)
 
                 // Divider
-                Text("•").foregroundColor(.white.opacity(0.3)).font(.system(size: 8))
+                divider
+
+                // Distance today
+                HStack(spacing: 3) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 9))
+                        .foregroundColor(.blue.opacity(0.9))
+                    Text(formatDistance(todayMiles))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity)
+
+                // Divider
+                divider
 
                 // Elevation
                 HStack(spacing: 3) {
                     Image(systemName: "mountain.2.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.cyan.opacity(0.8))
-                    Text("\(Int(todayMiles * 15))ft")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 9))
+                        .foregroundColor(.cyan.opacity(0.9))
+                    Text(elevationText)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white.opacity(0.8))
                 }
+                .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
+            .padding(.horizontal, 4)
             .background(
                 // Frosted glass effect for stats area
                 Color(white: 0.05).opacity(0.9)
@@ -104,45 +117,36 @@ struct CustomTitleHeaderView: View {
             RoundedRectangle(cornerRadius: 28)
                 .stroke(
                     LinearGradient(
-                        colors: [.white.opacity(0.5), .cyan.opacity(0.3), .white.opacity(0.2)],
+                        colors: [.white.opacity(0.5), accentColor.opacity(0.3), .white.opacity(0.2)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
                     lineWidth: 1.5
                 )
         )
-        // Soft glow layers
-        .shadow(color: .cyan.opacity(0.4), radius: 15, x: 0, y: 0)
-        .shadow(color: .blue.opacity(0.3), radius: 25, x: 0, y: 5)
+        // Soft glow layers - uses accent color to match tab bar
+        .shadow(color: accentColor.opacity(0.4), radius: 15, x: 0, y: 0)
+        .shadow(color: accentColor.opacity(0.3), radius: 25, x: 0, y: 5)
         .shadow(color: shadowColor.opacity(0.5), radius: 20, x: 0, y: 8)
-        .padding(.horizontal, 8)
+        .onReceive(timer) { time in
+            currentTime = time
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
     }
 
-    // MARK: - Helpers
+    // MARK: - Subviews
 
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        if hours > 0 {
-            return "\(hours)h\(minutes)m"
-        }
-        return "\(minutes)m"
-    }
-
-    private func formatTimeAgo(_ date: Date) -> String {
-        let seconds = Int(-date.timeIntervalSinceNow)
-        if seconds < 60 { return "\(seconds)s ago" }
-        else if seconds < 3600 { return "\(seconds / 60)m ago" }
-        else { return "\(seconds / 3600)h ago" }
+    private var divider: some View {
+        Text("•")
+            .foregroundColor(.white.opacity(0.25))
+            .font(.system(size: 6))
     }
 
     // MARK: - Computed Properties
 
     private var statusText: String {
-        if hasIssues { return "WARN" }
-        if isTracking { return "ACTIVE" }
+        if isTracking { return "TRACKING" }
         if let zone = currentZoneName { return zone.uppercased() }
         return "IDLE"
     }
@@ -154,13 +158,26 @@ struct CustomTitleHeaderView: View {
         return .gray
     }
 
-    private var borderGradient: LinearGradient {
-        let color: Color = hasIssues ? .orange : (isTracking ? .green : .white.opacity(0.3))
-        return LinearGradient(
-            colors: [color.opacity(0.8), color.opacity(0.3), color.opacity(0.1)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var lastSentText: String {
+        guard let lastSent = lastSuccessfulSend else { return "--" }
+        return formatTimeAgo(lastSent)
+    }
+
+    private var lastSentColor: Color {
+        guard let lastSent = lastSuccessfulSend else { return .gray }
+        let seconds = Int(-lastSent.timeIntervalSinceNow)
+        // Green if recent (< 2 min), yellow if older (< 10 min), orange if stale
+        if seconds < 120 { return .green.opacity(0.9) }
+        else if seconds < 600 { return .yellow.opacity(0.9) }
+        else { return .orange.opacity(0.9) }
+    }
+
+    private var elevationText: String {
+        if let elevation = currentElevation {
+            let feet = elevation * 3.28084
+            return "\(Int(feet))ft"
+        }
+        return "--"
     }
 
     private var shadowColor: Color {
@@ -175,6 +192,32 @@ struct CustomTitleHeaderView: View {
             description += "\(pendingCount) points pending. "
         }
         return description
+    }
+
+    // MARK: - Formatters
+
+    private func formatTimeAgo(_ date: Date) -> String {
+        let seconds = Int(currentTime.timeIntervalSince(date))
+        if seconds < 0 { return "now" }
+        if seconds < 60 { return "\(seconds)s" }
+        else if seconds < 3600 { return "\(seconds / 60)m" }
+        else if seconds < 86400 { return "\(seconds / 3600)h" }
+        else { return "\(seconds / 86400)d" }
+    }
+
+    private func formatDistance(_ miles: Double) -> String {
+        if miles >= 10 {
+            return String(format: "%.0fmi", miles)
+        } else if miles >= 1 {
+            return String(format: "%.1fmi", miles)
+        } else {
+            // Show in feet for small distances
+            let feet = miles * 5280
+            if feet >= 100 {
+                return String(format: "%.0fft", feet)
+            }
+            return String(format: "%.0fft", feet)
+        }
     }
 }
 
@@ -353,8 +396,6 @@ struct CloudsOverlayView: View {
                     .offset(x: cloud3Offset - geometry.size.width/2, y: -2)
             }
             .onAppear {
-                let width = geometry.size.width
-
                 // Cloud 1 - slow drift
                 withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
                     cloud1Offset = 80
@@ -550,7 +591,9 @@ struct CustomTitleHeaderView_Previews: PreviewProvider {
                 lastSuccessfulSend: Date().addingTimeInterval(-45),
                 todayMiles: 12.4,
                 sessionDuration: 3720,
-                pointsSent: 847
+                pointsSent: 847,
+                currentElevation: 152.4,
+                accentColor: .green
             )
 
             // Idle at home
@@ -563,7 +606,9 @@ struct CustomTitleHeaderView_Previews: PreviewProvider {
                 currentZoneName: "Home",
                 connectionStatus: .connected,
                 todayMiles: 8.2,
-                pointsSent: 234
+                pointsSent: 234,
+                currentElevation: 85.0,
+                accentColor: .cyan
             )
 
             // Warning state
@@ -576,7 +621,9 @@ struct CustomTitleHeaderView_Previews: PreviewProvider {
                 currentZoneName: nil,
                 connectionStatus: .error,
                 todayMiles: 5.7,
-                sessionDuration: 1800
+                sessionDuration: 1800,
+                currentElevation: 220.0,
+                accentColor: .orange
             )
         }
         .padding()

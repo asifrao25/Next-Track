@@ -144,13 +144,16 @@ class CityTracker: ObservableObject {
             // Cache the result
             cityCache[cacheKey] = cityName
 
+            // Use placemark's location (city center) if available, otherwise fall back to original
+            let cityCoordinate = placemark.location?.coordinate ?? location.coordinate
+
             await MainActor.run {
                 updateCity(
                     name: cityName,
                     state: placemark.administrativeArea,
                     country: placemark.country ?? "Unknown",
                     countryCode: placemark.isoCountryCode,
-                    coordinate: location.coordinate
+                    coordinate: cityCoordinate
                 )
             }
         } catch {
@@ -224,6 +227,9 @@ class CityTracker: ObservableObject {
             let data = try JSONEncoder().encode(visitedCities)
             UserDefaults.standard.set(data, forKey: storageKey)
             print("[CityTracker] Saved \(visitedCities.count) cities")
+
+            // Sync to iCloud
+            iCloudSyncManager.shared.syncCitiesNow()
         } catch {
             print("[CityTracker] Failed to save cities: \(error)")
         }
@@ -243,6 +249,46 @@ class CityTracker: ObservableObject {
         }
     }
 
+    // MARK: - Manual City Addition
+
+    /// Add a city manually (from search or map long-press)
+    func addManualCity(
+        name: String,
+        state: String?,
+        country: String,
+        countryCode: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        // Check for existing city (same name + country)
+        if let index = visitedCities.firstIndex(where: {
+            $0.name.lowercased() == name.lowercased() && $0.country.lowercased() == country.lowercased()
+        }) {
+            // City already exists - increment visit count
+            visitedCities[index].lastVisitDate = Date()
+            visitedCities[index].visitCount += 1
+            print("[CityTracker] Manual add - updated existing city: \(name) (visits: \(visitedCities[index].visitCount))")
+        } else {
+            // New city
+            let newCity = VisitedCity(
+                name: name,
+                state: state,
+                country: country,
+                countryCode: countryCode,
+                latitude: latitude,
+                longitude: longitude,
+                isManuallyAdded: true
+            )
+            visitedCities.append(newCity)
+            print("[CityTracker] Manual add - new city: \(name), \(state ?? ""), \(country)")
+
+            // Send notification for new city
+            sendNewCityNotification(city: newCity)
+        }
+
+        saveCities()
+    }
+
     // MARK: - Query Methods
 
     func cities(sortedBy option: CitySortOption) -> [VisitedCity] {
@@ -259,6 +305,31 @@ class CityTracker: ObservableObject {
 
     func mostVisitedCities(limit: Int = 5) -> [VisitedCity] {
         Array(visitedCities.sorted { $0.visitCount > $1.visitCount }.prefix(limit))
+    }
+
+    // MARK: - Delete Methods
+
+    /// Delete a specific city by ID
+    func deleteCity(_ cityId: UUID) {
+        if let index = visitedCities.firstIndex(where: { $0.id == cityId }) {
+            let cityName = visitedCities[index].name
+            visitedCities.remove(at: index)
+            saveCities()
+            print("[CityTracker] Deleted city: \(cityName)")
+        }
+    }
+
+    /// Remove a city object
+    func removeCity(_ city: VisitedCity) {
+        deleteCity(city.id)
+    }
+
+    /// Delete cities at specific indices
+    func deleteCities(at offsets: IndexSet, from cities: [VisitedCity]) {
+        for index in offsets {
+            let city = cities[index]
+            deleteCity(city.id)
+        }
     }
 
     // MARK: - Debug

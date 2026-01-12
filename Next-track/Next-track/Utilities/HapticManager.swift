@@ -92,6 +92,23 @@ class HapticManager {
         selectionFeedback.selectionChanged()
     }
 
+    // MARK: - Simple Impact Feedback
+
+    /// Light impact - for subtle interactions
+    func light() {
+        lightImpact.impactOccurred()
+    }
+
+    /// Medium impact - for important interactions
+    func medium() {
+        mediumImpact.impactOccurred()
+    }
+
+    /// Heavy impact - for critical interactions
+    func heavy() {
+        heavyImpact.impactOccurred()
+    }
+
     // MARK: - Alerts & Notifications
 
     /// Success notification

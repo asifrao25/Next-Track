@@ -33,6 +33,15 @@
 		D5F89A5F1DF16B39C36B02DC /* BatteryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9899C19CAEA479C655094AFE /* BatteryMonitor.swift */; };
 		DAC048833DBCB45E64DA82FC /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4670E34D04416D5781ABF /* UserDefaultsKeys.swift */; };
 		DC1F6BE7E2ED4284BEA9EE55 /* VisitedCity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */; };
+		E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */; };
+		E076BA082F1443F60017713E /* ShatterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA072F1443F60017713E /* ShatterView.swift */; };
+		E076BA0D2F14FF920017713E /* VisitedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA0B2F14FF920017713E /* VisitedView.swift */; };
+		E076BA0E2F14FF920017713E /* PinMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA092F14FF920017713E /* PinMarkerView.swift */; };
+		E076BA0F2F14FF920017713E /* VisitedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA0A2F14FF920017713E /* VisitedMapView.swift */; };
+		E076BA112F1502EE0017713E /* CitySearchCompleter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA102F1502EE0017713E /* CitySearchCompleter.swift */; };
+		E076BA182F156A000017713E /* VisitedMapController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA192F156A000017713E /* VisitedMapController.swift */; };
+		E076BA192F15326F0017713E /* BackupRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA182F15326F0017713E /* BackupRestoreView.swift */; };
+		E076BA1B2F153CFD0017713E /* TrackingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA1A2F153CFD0017713E /* TrackingSettings.swift */; };
 		E0A6A9112F0DD8C600D86263 /* ConnectionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A90F2F0DD8C500D86263 /* ConnectionMonitor.swift */; };
 		E0A6A9122F0DD8C600D86263 /* GeofenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A9102F0DD8C500D86263 /* GeofenceManager.swift */; };
 		E0A6A9142F0DD92100D86263 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A6A9132F0DD92100D86263 /* HapticManager.swift */; };
@@ -50,10 +59,6 @@
 		E0BFC05D2F1071A800B1E23B /* CountriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0582F1071A800B1E23B /* CountriesView.swift */; };
 		E0BFC05E2F1071A800B1E23B /* CountriesMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0572F1071A800B1E23B /* CountriesMapView.swift */; };
 		E0BFC05F2F1071A800B1E23B /* AddCountrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0552F1071A800B1E23B /* AddCountrySheet.swift */; };
-		E0BFC0612F1113D100B1E23B /* VisitedCountry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0602F1113D100B1E23B /* VisitedCountry.swift */; };
-		E0BFC0632F1113F800B1E23B /* CountriesMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0622F1113F800B1E23B /* CountriesMapView.swift */; };
-		E0BFC0652F11142300B1E23B /* CountryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0642F11142300B1E23B /* CountryDetailView.swift */; };
-		E0BFC0672F11144000B1E23B /* CountriesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0662F11144000B1E23B /* CountriesManager.swift */; };
 		E0BFC06C2F11366800B1E23B /* UKCitiesMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0682F11366800B1E23B /* UKCitiesMapView.swift */; };
 		E0BFC06D2F11366800B1E23B /* UKCityDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC06A2F11366800B1E23B /* UKCityDetailSheet.swift */; };
 		E0BFC06E2F11366800B1E23B /* UKCitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0692F11366800B1E23B /* UKCitiesView.swift */; };
@@ -67,6 +72,9 @@
 		E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */; };
 		E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */; };
 		E0BFC0822F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */; };
+		E0BFC0862F1314BA00B1E23B /* iCloudSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0852F1314BA00B1E23B /* iCloudSyncManager.swift */; };
+		E0BFC0882F13162B00B1E23B /* iCloudSyncPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0872F13162B00B1E23B /* iCloudSyncPopupView.swift */; };
+		E0BFC08A2F1317DE00B1E23B /* FullBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0892F1317DE00B1E23B /* FullBackupManager.swift */; };
 		E0GEO1234567890ABCDEF01 /* countries.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0GEO9876543210FEDCBA01 /* countries.geojson */; };
 		E0LAD1234567890ABCDEF02 /* uk_lads.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0LAD9876543210FEDCBA02 /* uk_lads.geojson */; };
 /* End PBXBuildFile section */
@@ -98,6 +106,15 @@
 		CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CD50B260139B4567B56B9236 /* Insights.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Insights.swift; sourceTree = "<group>"; };
 		DBDDE8A370F543099B9BB3E5 /* CityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityTracker.swift; sourceTree = "<group>"; };
+		E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickFrequencyPillView.swift; sourceTree = "<group>"; };
+		E076BA072F1443F60017713E /* ShatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShatterView.swift; sourceTree = "<group>"; };
+		E076BA092F14FF920017713E /* PinMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinMarkerView.swift; sourceTree = "<group>"; };
+		E076BA0A2F14FF920017713E /* VisitedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisitedMapView.swift; sourceTree = "<group>"; };
+		E076BA0B2F14FF920017713E /* VisitedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisitedView.swift; sourceTree = "<group>"; };
+		E076BA102F1502EE0017713E /* CitySearchCompleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitySearchCompleter.swift; sourceTree = "<group>"; };
+		E076BA182F15326F0017713E /* BackupRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupRestoreView.swift; sourceTree = "<group>"; };
+		E076BA192F156A000017713E /* VisitedMapController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisitedMapController.swift; sourceTree = "<group>"; };
+		E076BA1A2F153CFD0017713E /* TrackingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingSettings.swift; sourceTree = "<group>"; };
 		E0A6A90F2F0DD8C500D86263 /* ConnectionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionMonitor.swift; sourceTree = "<group>"; };
 		E0A6A9102F0DD8C500D86263 /* GeofenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeofenceManager.swift; sourceTree = "<group>"; };
 		E0A6A9132F0DD92100D86263 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
@@ -115,10 +132,6 @@
 		E0BFC0572F1071A800B1E23B /* CountriesMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountriesMapView.swift; sourceTree = "<group>"; };
 		E0BFC0582F1071A800B1E23B /* CountriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountriesView.swift; sourceTree = "<group>"; };
 		E0BFC0592F1071A800B1E23B /* CountryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryDetailView.swift; sourceTree = "<group>"; };
-		E0BFC0602F1113D100B1E23B /* VisitedCountry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisitedCountry.swift; sourceTree = "<group>"; };
-		E0BFC0622F1113F800B1E23B /* CountriesMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountriesMapView.swift; sourceTree = "<group>"; };
-		E0BFC0642F11142300B1E23B /* CountryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryDetailView.swift; sourceTree = "<group>"; };
-		E0BFC0662F11144000B1E23B /* CountriesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountriesManager.swift; sourceTree = "<group>"; };
 		E0BFC0682F11366800B1E23B /* UKCitiesMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKCitiesMapView.swift; sourceTree = "<group>"; };
 		E0BFC0692F11366800B1E23B /* UKCitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKCitiesView.swift; sourceTree = "<group>"; };
 		E0BFC06A2F11366800B1E23B /* UKCityDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKCityDetailSheet.swift; sourceTree = "<group>"; };
@@ -132,6 +145,9 @@
 		E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = Video_Duration_and_Animation_Adjusted.mp4; sourceTree = "<group>"; };
+		E0BFC0852F1314BA00B1E23B /* iCloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudSyncManager.swift; sourceTree = "<group>"; };
+		E0BFC0872F13162B00B1E23B /* iCloudSyncPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudSyncPopupView.swift; sourceTree = "<group>"; };
+		E0BFC0892F1317DE00B1E23B /* FullBackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullBackupManager.swift; sourceTree = "<group>"; };
 		E0GEO9876543210FEDCBA01 /* countries.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = countries.geojson; sourceTree = "<group>"; };
 		E0LAD9876543210FEDCBA02 /* uk_lads.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = uk_lads.geojson; sourceTree = "<group>"; };
 		E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPreviewView.swift; sourceTree = "<group>"; };
@@ -146,10 +162,11 @@
 				E0A6A91D2F0E5F2200D86263 /* AutoExportManager.swift */,
 				E0BFC0712F1136B000B1E23B /* UKCitiesManager.swift */,
 				7E93E270147565F75E368E4D /* BackgroundTaskManager.swift */,
-				E0BFC0662F11144000B1E23B /* CountriesManager.swift */,
 				E0BFC0752F11B27100B1E23B /* ErrorStateManager.swift */,
 				9899C19CAEA479C655094AFE /* BatteryMonitor.swift */,
 				C8DE6F4F200B07538B356767 /* LocationManager.swift */,
+				E0BFC0892F1317DE00B1E23B /* FullBackupManager.swift */,
+				E0BFC0852F1314BA00B1E23B /* iCloudSyncManager.swift */,
 				E0A6A90F2F0DD8C500D86263 /* ConnectionMonitor.swift */,
 				E0A6A9102F0DD8C500D86263 /* GeofenceManager.swift */,
 				592AD840CA838392C4D6AE12 /* MotionManager.swift */,
@@ -160,6 +177,7 @@
 				40E7FDBC00BC4D659B8772ED /* InsightsManager.swift */,
 				E0BFC04F2F10710C00B1E23B /* CountriesManager.swift */,
 				DBDDE8A370F543099B9BB3E5 /* CityTracker.swift */,
+				E076BA102F1502EE0017713E /* CitySearchCompleter.swift */,
 			);
 			name = Services;
 			path = "Next-track/Services";
@@ -207,9 +225,14 @@
 				4C35AAAAD93F2CE96B3BB5E4 /* MainView.swift */,
 				E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */,
 				E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */,
+				E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */,
+				E0BFC0872F13162B00B1E23B /* iCloudSyncPopupView.swift */,
+				E076BA0C2F14FF920017713E /* VisitedTab */,
 				E0A6A91B2F0DE02400D86263 /* CustomTitleHeaderView.swift */,
 				E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */,
+				E076BA182F15326F0017713E /* BackupRestoreView.swift */,
 				E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */,
+				E076BA072F1443F60017713E /* ShatterView.swift */,
 				CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */,
 				E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */,
 				C20D411677CE474BB13A34D8 /* InsightsTab/InsightsView.swift */,
@@ -228,13 +251,13 @@
 				E0BFC0512F10718700B1E23B /* GeoJSONModels.swift */,
 				E0BFC0522F10718700B1E23B /* VisitedCountry.swift */,
 				E0BFC06F2F11369E00B1E23B /* UKCityData.swift */,
+				E076BA1A2F153CFD0017713E /* TrackingSettings.swift */,
 				B11E03C0F45DFFECE74D7CA2 /* ServerConfig.swift */,
 				E0A6A9152F0DD9D700D86263 /* TrackingHistory.swift */,
 				E0BFC0772F11B33800B1E23B /* AppError.swift */,
 				3E59F9CEAC0AAD961A876C93 /* TrackingSettings.swift */,
 				4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */,
 				CD50B260139B4567B56B9236 /* Insights.swift */,
-				E0BFC0602F1113D100B1E23B /* VisitedCountry.swift */,
 				B4A6E5DB6608472C859BDAF0 /* DetectedPlace.swift */,
 			);
 			name = Models;
@@ -249,6 +272,17 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		E076BA0C2F14FF920017713E /* VisitedTab */ = {
+			isa = PBXGroup;
+			children = (
+				E076BA092F14FF920017713E /* PinMarkerView.swift */,
+				E076BA0A2F14FF920017713E /* VisitedMapView.swift */,
+				E076BA0B2F14FF920017713E /* VisitedView.swift */,
+				E076BA192F156A000017713E /* VisitedMapController.swift */,
+			);
+			path = VisitedTab;
+			sourceTree = "<group>";
+		};
 		E0BFC05A2F1071A800B1E23B /* CountriesTab */ = {
 			isa = PBXGroup;
 			children = (
@@ -257,10 +291,8 @@
 				E0BFC0562F1071A800B1E23B /* CountriesListView.swift */,
 				E0BFC0572F1071A800B1E23B /* CountriesMapView.swift */,
 				E0BFC06B2F11366800B1E23B /* UKCitiesTab */,
-				E0BFC0642F11142300B1E23B /* CountryDetailView.swift */,
 				E0BFC0582F1071A800B1E23B /* CountriesView.swift */,
 				E0BFC0592F1071A800B1E23B /* CountryDetailView.swift */,
-				E0BFC0622F1113F800B1E23B /* CountriesMapView.swift */,
 			);
 			path = CountriesTab;
 			sourceTree = "<group>";
@@ -362,22 +394,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0BFC0702F11369E00B1E23B /* UKCityData.swift in Sources */,
+				E0BFC0862F1314BA00B1E23B /* iCloudSyncManager.swift in Sources */,
 				E0A6A9162F0DD9D700D86263 /* TrackingHistory.swift in Sources */,
 				9B29C10F80635B8C9AB13106 /* BackgroundTaskManager.swift in Sources */,
 				E0A6A91A2F0DDB1A00D86263 /* GeofenceSettingsView.swift in Sources */,
 				E0BFC0502F10710C00B1E23B /* CountriesManager.swift in Sources */,
 				E0A6A9112F0DD8C600D86263 /* ConnectionMonitor.swift in Sources */,
 				E0A6A91E2F0E5F2200D86263 /* AutoExportManager.swift in Sources */,
-				E0BFC0672F11144000B1E23B /* CountriesManager.swift in Sources */,
 				E0A6A9122F0DD8C600D86263 /* GeofenceManager.swift in Sources */,
 				D5F89A5F1DF16B39C36B02DC /* BatteryMonitor.swift in Sources */,
 				E0A6A9182F0DDAF900D86263 /* StatsHistoryView.swift in Sources */,
-				E0BFC0612F1113D100B1E23B /* VisitedCountry.swift in Sources */,
 				40A8C892C98899F71E2A4D9A /* LocationData.swift in Sources */,
 				0BF97EEC3EA40730A3C65A83 /* LocationManager.swift in Sources */,
+				E076BA1B2F153CFD0017713E /* TrackingSettings.swift in Sources */,
 				932AC6367091F12AC6481046 /* MainView.swift in Sources */,
 				B20E2FAD87B7981167ACAB78 /* MapPreviewView.swift in Sources */,
 				E0A6A9222F10091F00D86263 /* TrackingStateManager.swift in Sources */,
+				E076BA112F1502EE0017713E /* CitySearchCompleter.swift in Sources */,
 				8C03DEBA87B402FCEE4561CC /* MotionManager.swift in Sources */,
 				8FE6245B58B232D872565AE6 /* NextTrackApp.swift in Sources */,
 				CCED87382434579FEEBA2F67 /* PhoneTrackAPI.swift in Sources */,
@@ -388,9 +421,10 @@
 				7533623D0C051FCE8A6CE289 /* SettingsView.swift in Sources */,
 				4E1F894E1B4B077C5EE96BAF /* TrackingSettings.swift in Sources */,
 				E0BFC0532F10718700B1E23B /* VisitedCountry.swift in Sources */,
+				E076BA082F1443F60017713E /* ShatterView.swift in Sources */,
 				E0BFC0542F10718700B1E23B /* GeoJSONModels.swift in Sources */,
 				E0A6A9142F0DD92100D86263 /* HapticManager.swift in Sources */,
-				E0BFC0632F1113F800B1E23B /* CountriesMapView.swift in Sources */,
+				E0BFC08A2F1317DE00B1E23B /* FullBackupManager.swift in Sources */,
 				E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */,
 				E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */,
 				DAC048833DBCB45E64DA82FC /* UserDefaultsKeys.swift in Sources */,
@@ -407,11 +441,17 @@
 				D5A336405FFA43D6B0017AEC /* Components/ScrollableTabBar.swift in Sources */,
 				E0BFC06C2F11366800B1E23B /* UKCitiesMapView.swift in Sources */,
 				E0BFC06D2F11366800B1E23B /* UKCityDetailSheet.swift in Sources */,
+				E076BA0D2F14FF920017713E /* VisitedView.swift in Sources */,
+				E076BA0E2F14FF920017713E /* PinMarkerView.swift in Sources */,
+				E076BA0F2F14FF920017713E /* VisitedMapView.swift in Sources */,
+				E076BA182F156A000017713E /* VisitedMapController.swift in Sources */,
 				E0BFC06E2F11366800B1E23B /* UKCitiesView.swift in Sources */,
+				E076BA192F15326F0017713E /* BackupRestoreView.swift in Sources */,
 				3E39533E64764515B5E4F4DF /* PlaceDetectionManager.swift in Sources */,
 				E0BFC07A2F11B35700B1E23B /* Logger.swift in Sources */,
-				E0BFC0652F11142300B1E23B /* CountryDetailView.swift in Sources */,
 				6BBD5885F97941F090273805 /* InsightsManager.swift in Sources */,
+				E0BFC0882F13162B00B1E23B /* iCloudSyncPopupView.swift in Sources */,
+				E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */,
 				E0BFC0742F114DD800B1E23B /* AddUKCitySheet.swift in Sources */,
 				E0BFC0762F11B27100B1E23B /* ErrorStateManager.swift in Sources */,
 				E0BFC0722F1136B000B1E23B /* UKCitiesManager.swift in Sources */,
@@ -569,7 +609,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "Next-track/Resources/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -589,7 +629,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "Next-track/Resources/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

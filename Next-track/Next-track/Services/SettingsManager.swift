@@ -12,11 +12,17 @@ class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
 
     @Published var serverConfig: ServerConfig {
-        didSet { serverConfig.save() }
+        didSet {
+            serverConfig.save()
+            iCloudSyncManager.shared.syncSettingsNow()
+        }
     }
 
     @Published var trackingSettings: TrackingSettings {
-        didSet { trackingSettings.save() }
+        didSet {
+            trackingSettings.save()
+            iCloudSyncManager.shared.syncSettingsNow()
+        }
     }
 
     @Published var trackingStats: TrackingStats {

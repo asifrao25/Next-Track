@@ -160,7 +160,7 @@ class ConnectionMonitor: ObservableObject {
 
             let content = UNMutableNotificationContent()
             content.title = "⚠️ Connection Lost"
-            content.body = "Next-track hasn't been able to send location data for 5 minutes. Check your internet connection."
+            content.body = "Been There hasn't been able to send location data for 5 minutes. Check your internet connection."
             content.sound = .default
             content.interruptionLevel = .timeSensitive
 

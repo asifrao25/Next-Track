@@ -17,103 +17,114 @@ struct IdentifiableURL: Identifiable {
 
 struct StatsHistoryView: View {
     @StateObject private var historyManager = TrackingHistoryManager.shared
-    @StateObject private var autoExportManager = AutoExportManager.shared
+    @StateObject private var connectionMonitor = ConnectionMonitor.shared
+    @StateObject private var batteryMonitor = BatteryMonitor.shared
+    @StateObject private var geofenceManager = GeofenceManager.shared
+    @EnvironmentObject var settingsManager: SettingsManager
+    @EnvironmentObject var phoneTrackAPI: PhoneTrackAPI
+    @EnvironmentObject var locationManager: LocationManager
+
     @State private var selectedTimeRange: TimeRange = .today
     @State private var showClearConfirmation = false
-    @State private var exportItem: IdentifiableURL?  // Changed to use identifiable wrapper
+    @State private var showFinalClearConfirmation = false
+    @State private var exportItem: IdentifiableURL?
     @State private var showImportPicker = false
     @State private var importError: String?
     @State private var showImportError = false
-    @State private var showFolderPicker = false
-    @State private var showSessionsList = false  // Collapsed by default
-    @State private var showDailyStats = false     // Collapsed by default
+    @State private var showSessionsList = false
+    @State private var showDailyStats = false
 
     enum TimeRange: String, CaseIterable {
         case today = "Today"
-        case week = "This Week"
+        case week = "Week"
         case allTime = "All Time"
+    }
+
+    // Helper to map PhoneTrackAPI connection status to our enum
+    private var mapConnectionStatus: ConnectionStatusType {
+        switch phoneTrackAPI.connectionStatus {
+        case .connected: return .connected
+        case .disconnected: return .disconnected
+        case .error: return .error
+        case .unknown: return .unknown
+        }
+    }
+
+    private var hasIssues: Bool {
+        phoneTrackAPI.connectionStatus == .error ||
+        phoneTrackAPI.connectionStatus == .disconnected ||
+        PendingLocationQueue.shared.count > 0 ||
+        !settingsManager.isConfigured
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Time Range Picker
-                    Picker("Time Range", selection: $selectedTimeRange) {
-                        ForEach(TimeRange.allCases, id: \.self) { range in
-                            Text(range.rawValue).tag(range)
-                        }
+            ZStack(alignment: .top) {
+                // Scrollable content
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Spacer for fixed header
+                        Color.clear.frame(height: 130)
+
+                        // Time Range Picker
+                        timeRangePicker
+
+                        // Hero Stats Grid
+                        heroStatsGrid
+
+                        // Quick Stats Row
+                        quickStatsRow
+
+                        // Daily Records Section
+                        dailyStatsSection
+
+                        // Sessions Section
+                        sessionsSection
+
+                        // Export/Import Section
+                        dataManagementSection
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-
-                    // Stats Cards
-                    statsCards
-
-                    // Pending Locations
-                    pendingLocationsCard
-
-                    // Connection Status
-                    connectionStatusCard
-
-                    // Auto Export Settings
-                    autoExportCard
-
-                    // Daily Stats (collapsed by day)
-                    dailyStatsSection
-
-                    // Sessions (collapsed by default)
-                    sessionsSection
+                    .padding(.top, 8)
+                    .padding(.bottom, 120)
                 }
-                .padding(.vertical)
-                .padding(.bottom, 100) // Space for tab bar
-            }
-            .navigationTitle("Stats & History")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        // Export options
-                        Menu {
-                            Button {
-                                exportAllToGPX()
-                            } label: {
-                                Label("Export as GPX (for Maps)", systemImage: "map")
-                            }
+                .background(Color(.systemGroupedBackground))
 
-                            Button {
-                                exportAllToJSON()
-                            } label: {
-                                Label("Export as JSON (Backup)", systemImage: "doc.text")
-                            }
-                        } label: {
-                            Label("Export All Data", systemImage: "square.and.arrow.up")
-                        }
-
-                        Button {
-                            showImportPicker = true
-                        } label: {
-                            Label("Import Data", systemImage: "square.and.arrow.down")
-                        }
-
-                        Divider()
-
-                        Button(role: .destructive) {
-                            showClearConfirmation = true
-                        } label: {
-                            Label("Clear History", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
+                // Fixed header at top
+                VStack(spacing: 0) {
+                    CustomTitleHeaderView(
+                        connectionMonitor: connectionMonitor,
+                        batteryMonitor: batteryMonitor,
+                        isTracking: TrackingStateManager.shared.isTracking,
+                        hasIssues: hasIssues,
+                        pendingCount: PendingLocationQueue.shared.count,
+                        currentZoneName: geofenceManager.currentZone?.name,
+                        connectionStatus: mapConnectionStatus,
+                        lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
+                        todayMiles: historyManager.todaysDistance / 1609.344,
+                        sessionDuration: historyManager.currentSession?.duration ?? 0,
+                        pointsSent: settingsManager.trackingStats.pointsSentToday,
+                        currentElevation: locationManager.currentLocation?.altitude,
+                        accentColor: .purple
+                    )
+                    .padding(.horizontal, 4)
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
             .alert("Clear All History?", isPresented: $showClearConfirmation) {
                 Button("Cancel", role: .cancel) {}
-                Button("Clear", role: .destructive) {
+                Button("Continue", role: .destructive) {
+                    showFinalClearConfirmation = true
+                }
+            } message: {
+                Text("This will permanently delete all tracking history including sessions, daily records, and statistics.")
+            }
+            .alert("Are You Absolutely Sure?", isPresented: $showFinalClearConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete Everything", role: .destructive) {
                     historyManager.clearAllHistory()
                 }
             } message: {
-                Text("This will permanently delete all tracking history. This action cannot be undone.")
+                Text("This action CANNOT be undone. All your tracking data will be permanently erased.")
             }
             .alert("Import Error", isPresented: $showImportError) {
                 Button("OK", role: .cancel) {}
@@ -130,329 +141,172 @@ struct StatsHistoryView: View {
             ) { result in
                 handleImport(result)
             }
-            .fileImporter(
-                isPresented: $showFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false
-            ) { result in
-                handleFolderSelection(result)
-            }
         }
     }
 
-    // MARK: - Auto Export Card
+    // MARK: - Time Range Picker
 
-    private var autoExportCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundColor(.blue)
-                Text("Auto Export")
-                    .font(.headline)
-                Spacer()
-            }
-
-            Toggle("Export daily at midnight", isOn: $autoExportManager.isEnabled)
-                .disabled(autoExportManager.exportFolderURL == nil)
-
-            // Folder selection
-            Button {
-                showFolderPicker = true
-            } label: {
-                HStack {
-                    Image(systemName: "folder")
-                    if let folderURL = autoExportManager.exportFolderURL {
-                        Text(folderURL.lastPathComponent)
-                            .lineLimit(1)
-                    } else {
-                        Text("Select export folder")
+    private var timeRangePicker: some View {
+        HStack(spacing: 12) {
+            ForEach(TimeRange.allCases, id: \.self) { range in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedTimeRange = range
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                } label: {
+                    Text(range.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(selectedTimeRange == range ? .semibold : .medium)
+                        .foregroundColor(selectedTimeRange == range ? .white : .secondary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(
+                            Group {
+                                if selectedTimeRange == range {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.blue, .blue.opacity(0.8)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .shadow(color: .blue.opacity(0.3), radius: 4, x: 0, y: 2)
+                                }
+                            }
+                        )
                 }
-            }
-            .buttonStyle(.bordered)
-            .tint(autoExportManager.exportFolderURL != nil ? .green : .blue)
-
-            // Last export info
-            if let lastExport = autoExportManager.lastExportDate {
-                HStack {
-                    Text("Last export:")
-                        .foregroundColor(.secondary)
-                    Text(lastExport, style: .relative)
-                    Text("ago")
-                        .foregroundColor(.secondary)
-                }
-                .font(.caption)
-
-                if !autoExportManager.lastExportStatus.isEmpty {
-                    Text(autoExportManager.lastExportStatus)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            // Manual export button - exports today's sessions
-            Button {
-                autoExportManager.performDailyExport(forToday: true)
-            } label: {
-                Label("Export Today", systemImage: "square.and.arrow.up")
-                    .font(.subheadline)
-            }
-            .buttonStyle(.bordered)
-            .disabled(autoExportManager.exportFolderURL == nil)
-
-            // Info text
-            Text("Auto-exports previous day's data at midnight. 'Export Today' saves current day's sessions.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-        .padding(.horizontal)
-    }
-
-    private func handleFolderSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            if let url = urls.first {
-                autoExportManager.setExportFolder(url)
-            }
-        case .failure(let error):
-            print("[StatsHistory] Folder selection failed: \(error)")
-        }
-    }
-
-    // MARK: - Export Functions
-
-    private func exportAllToGPX() {
-        let gpxContent = historyManager.exportAllSessionsToGPX()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let filename = "NextTrack-Export-\(dateFormatter.string(from: Date())).gpx"
-
-        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
-            exportItem = IdentifiableURL(url: url)
-        }
-    }
-
-    private func exportAllToJSON() {
-        guard let jsonData = historyManager.exportAllSessionsToJSON() else { return }
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let filename = "NextTrack-Backup-\(dateFormatter.string(from: Date())).json"
-
-        if let url = historyManager.saveJSONFile(data: jsonData, filename: filename) {
-            exportItem = IdentifiableURL(url: url)
-        }
-    }
-
-    private func handleImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-
-            // Start accessing security-scoped resource
-            guard url.startAccessingSecurityScopedResource() else {
-                importError = "Cannot access the selected file"
-                showImportError = true
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            do {
-                let data = try Data(contentsOf: url)
-                if historyManager.importSessionsFromJSON(data) {
-                    // Success - no need to show anything
-                } else {
-                    importError = "Invalid file format. Please select a valid Next Track backup file."
-                    showImportError = true
-                }
-            } catch {
-                importError = "Failed to read file: \(error.localizedDescription)"
-                showImportError = true
-            }
-
-        case .failure(let error):
-            importError = error.localizedDescription
-            showImportError = true
-        }
-    }
-
-    // MARK: - Stats Cards
-
-    private var statsCards: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                StatCardLarge(
-                    title: "Distance",
-                    value: formatDistance(distanceForRange),
-                    icon: "figure.walk",
-                    color: .blue
-                )
-
-                StatCardLarge(
-                    title: "Points Sent",
-                    value: "\(pointsForRange)",
-                    icon: "mappin.and.ellipse",
-                    color: .green
-                )
-            }
-
-            HStack(spacing: 12) {
-                StatCardLarge(
-                    title: "Sessions",
-                    value: "\(sessionsForRange)",
-                    icon: "clock.fill",
-                    color: .orange
-                )
-
-                StatCardLarge(
-                    title: "Duration",
-                    value: formatDuration(durationForRange),
-                    icon: "timer",
-                    color: .purple
-                )
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal)
     }
 
-    // MARK: - Pending Locations Card
+    // MARK: - Hero Stats Grid
 
-    private var pendingLocationsCard: some View {
-        let pendingCount = PendingLocationQueue.shared.count
+    private var heroStatsGrid: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ], spacing: 12) {
+            // Distance Card - Large
+            HeroStatCard(
+                title: "Distance",
+                value: formatDistance(distanceForRange),
+                subtitle: selectedTimeRange == .today ? "traveled today" : selectedTimeRange == .week ? "this week" : "total",
+                icon: "figure.walk",
+                gradient: [Color.blue, Color.cyan]
+            )
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "tray.full.fill")
-                    .foregroundColor(pendingCount > 0 ? .orange : .green)
-                Text("Pending Locations")
-                    .font(.headline)
-                Spacer()
-                Text("\(pendingCount)")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(pendingCount > 0 ? .orange : .green)
-            }
+            // Sessions Card - Large
+            HeroStatCard(
+                title: "Sessions",
+                value: "\(sessionsForRange)",
+                subtitle: selectedTimeRange == .today ? "today" : selectedTimeRange == .week ? "this week" : "total",
+                icon: "clock.fill",
+                gradient: [Color.orange, Color.yellow]
+            )
 
-            if pendingCount > 0 {
-                Text("These locations will be sent when connection is restored")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            // Points Card - Large
+            HeroStatCard(
+                title: "Points",
+                value: formatLargeNumber(pointsForRange),
+                subtitle: "locations tracked",
+                icon: "mappin.and.ellipse",
+                gradient: [Color.green, Color.mint]
+            )
 
-                Button("Retry Now") {
-                    PhoneTrackAPI.shared.sendPendingLocations()
-                }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-            } else {
-                Text("All locations have been sent successfully")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            // Duration Card - Large
+            HeroStatCard(
+                title: "Duration",
+                value: formatDuration(durationForRange),
+                subtitle: "time tracking",
+                icon: "timer",
+                gradient: [Color.purple, Color.pink]
+            )
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
         .padding(.horizontal)
     }
 
-    // MARK: - Connection Status Card
+    // MARK: - Quick Stats Row
 
-    private var connectionStatusCard: some View {
-        let connectionMonitor = ConnectionMonitor.shared
+    private var quickStatsRow: some View {
+        HStack(spacing: 12) {
+            QuickStatPill(
+                label: "Avg/Session",
+                value: formatDistance(averageDistancePerSession),
+                icon: "arrow.left.arrow.right"
+            )
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: connectionMonitor.isConnected ? "wifi" : "wifi.slash")
-                    .foregroundColor(connectionMonitor.isConnected ? .green : .red)
-                Text("Connection Status")
-                    .font(.headline)
-                Spacer()
-                Text(connectionMonitor.connectionType.rawValue)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
+            QuickStatPill(
+                label: "Days Active",
+                value: "\(totalUniqueDays)",
+                icon: "calendar"
+            )
 
-            HStack {
-                if let lastSuccess = connectionMonitor.lastSuccessfulConnection {
-                    Text("Last sync: ")
-                        .foregroundColor(.secondary)
-                    Text(lastSuccess, style: .relative)
-                    Text(" ago")
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("No successful sync yet")
-                        .foregroundColor(.secondary)
-                }
-            }
-            .font(.caption)
-
-            if let _ = connectionMonitor.disconnectedSince {
-                Text(connectionMonitor.statusDescription)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-            }
+            QuickStatPill(
+                label: "Avg Speed",
+                value: formatSpeed(averageSpeed),
+                icon: "speedometer"
+            )
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
         .padding(.horizontal)
     }
 
-    // MARK: - Daily Stats Section (Collapsible)
+    // MARK: - Daily Stats Section
 
     private var dailyStatsSection: some View {
         VStack(spacing: 0) {
-            // Collapsible header
-            HStack {
-                Image(systemName: "calendar")
-                    .foregroundColor(.blue)
-                Text("Daily Records")
-                    .font(.headline)
-                // Always show total count - not filtered
-                Text("(\(totalUniqueDays) \(totalUniqueDays == 1 ? "day" : "days"))")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .rotationEffect(.degrees(showDailyStats ? 90 : 0))
-            }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            .contentShape(Rectangle())
-            .onTapGesture {
+            // Section header
+            Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showDailyStats.toggle()
                 }
+            } label: {
+                HStack {
+                    HStack(spacing: 10) {
+                        Image(systemName: "calendar")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                            .frame(width: 32, height: 32)
+                            .background(Color.blue.opacity(0.15))
+                            .cornerRadius(8)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Daily Records")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("\(totalUniqueDays) days tracked")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(showDailyStats ? 90 : 0))
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(16)
             }
+            .buttonStyle(.plain)
             .padding(.horizontal)
 
-            // Expanded daily stats list
+            // Expanded daily stats
             if showDailyStats {
                 if historyManager.dailyStats.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "calendar.badge.clock")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("No tracking history yet")
-                            .foregroundColor(.secondary)
-                        Text("Start tracking to see daily summaries here")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                    emptyStateView(
+                        icon: "calendar.badge.clock",
+                        title: "No tracking history yet",
+                        subtitle: "Start tracking to see daily summaries"
+                    )
                 } else {
                     LazyVStack(spacing: 8) {
-                        ForEach(dailyStatsToShow) { daily in
+                        ForEach(historyManager.dailyStats) { daily in
                             DailyStatsRowView(
                                 dailyStats: daily,
                                 onOpenInMaps: { openDayInMaps(daily) },
@@ -470,46 +324,47 @@ struct StatsHistoryView: View {
         }
     }
 
-    /// Daily stats always shows ALL days - not filtered by time range
-    /// Time range only affects the summary stats cards at the top
-    private var dailyStatsToShow: [DailyStats] {
-        // Always show all days in Daily Records section
-        return historyManager.dailyStats
-    }
-
-    /// Total unique days across all data (for display in header)
-    private var totalUniqueDays: Int {
-        historyManager.dailyStats.count
-    }
-
-    // MARK: - Sessions Section (Collapsible)
+    // MARK: - Sessions Section
 
     private var sessionsSection: some View {
         VStack(spacing: 0) {
-            // Collapsible header
-            HStack {
-                Image(systemName: "list.bullet.rectangle")
-                    .foregroundColor(.orange)
-                Text("Sessions")
-                    .font(.headline)
-                Text("(\(historyManager.sessions.count))")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .rotationEffect(.degrees(showSessionsList ? 90 : 0))
-            }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            .contentShape(Rectangle())
-            .onTapGesture {
+            // Section header
+            Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showSessionsList.toggle()
                 }
+            } label: {
+                HStack {
+                    HStack(spacing: 10) {
+                        Image(systemName: "list.bullet.rectangle.fill")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                            .frame(width: 32, height: 32)
+                            .background(Color.orange.opacity(0.15))
+                            .cornerRadius(8)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sessions")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("\(historyManager.sessions.count) total sessions")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(showSessionsList ? 90 : 0))
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(16)
             }
+            .buttonStyle(.plain)
             .padding(.horizontal)
 
             // Expanded sessions list
@@ -533,66 +388,212 @@ struct StatsHistoryView: View {
         }
     }
 
-    // MARK: - Export Single Session
+    // MARK: - Data Management Section
+
+    private var dataManagementSection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "square.and.arrow.up.on.square")
+                    .font(.title3)
+                    .foregroundColor(.indigo)
+                    .frame(width: 32, height: 32)
+                    .background(Color.indigo.opacity(0.15))
+                    .cornerRadius(8)
+
+                Text("Data Management")
+                    .font(.headline)
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            HStack(spacing: 12) {
+                // Export GPX Button
+                Button {
+                    exportAllToGPX()
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "map")
+                            .font(.title2)
+                        Text("Export GPX")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                // Export JSON Button
+                Button {
+                    exportAllToJSON()
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "doc.text")
+                            .font(.title2)
+                        Text("Export JSON")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                // Import Button
+                Button {
+                    showImportPicker = true
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.title2)
+                        Text("Import")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+
+            // Clear All Button
+            Button {
+                showClearConfirmation = true
+            } label: {
+                HStack {
+                    Image(systemName: "trash")
+                    Text("Clear All History")
+                }
+                .font(.subheadline)
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(12)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(16)
+        .padding(.horizontal)
+    }
+
+    // MARK: - Empty State View
+
+    private func emptyStateView(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 40))
+                .foregroundColor(.secondary.opacity(0.6))
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.secondary.opacity(0.8))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
+    // MARK: - Export Functions
+
+    private func exportAllToGPX() {
+        let gpxContent = historyManager.exportAllSessionsToGPX()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "BeenThere-Export-\(dateFormatter.string(from: Date())).gpx"
+
+        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
+            exportItem = IdentifiableURL(url: url)
+        }
+    }
+
+    private func exportAllToJSON() {
+        guard let jsonData = historyManager.exportAllSessionsToJSON() else { return }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let filename = "BeenThere-Backup-\(dateFormatter.string(from: Date())).json"
+
+        if let url = historyManager.saveJSONFile(data: jsonData, filename: filename) {
+            exportItem = IdentifiableURL(url: url)
+        }
+    }
 
     private func exportSessionToGPX(_ session: TrackingSession) {
         let gpxContent = historyManager.exportSessionToGPX(session)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd-HHmm"
-        let filename = "NextTrack-\(dateFormatter.string(from: session.startTime)).gpx"
+        let filename = "BeenThere-\(dateFormatter.string(from: session.startTime)).gpx"
 
         if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
             exportItem = IdentifiableURL(url: url)
         }
     }
 
-    // MARK: - Export Daily Stats
+    private func handleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
 
-    private func exportDayToGPX(_ dailyStats: DailyStats) {
-        let gpxContent = historyManager.exportDayToGPX(dailyStats)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let filename = "NextTrack-\(dateFormatter.string(from: dailyStats.date)).gpx"
+            guard url.startAccessingSecurityScopedResource() else {
+                importError = "Cannot access the selected file"
+                showImportError = true
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
 
-        if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
-            exportItem = IdentifiableURL(url: url)
+            do {
+                let data = try Data(contentsOf: url)
+                if historyManager.importSessionsFromJSON(data) {
+                    // Success
+                } else {
+                    importError = "Invalid file format. Please select a valid Been There backup file."
+                    showImportError = true
+                }
+            } catch {
+                importError = "Failed to read file: \(error.localizedDescription)"
+                showImportError = true
+            }
+
+        case .failure(let error):
+            importError = error.localizedDescription
+            showImportError = true
         }
     }
 
     private func openDayInMaps(_ dailyStats: DailyStats) {
         let locations = dailyStats.allLocations
-        print("[Maps] Opening day in maps - \(locations.count) locations")
+        guard !locations.isEmpty else { return }
 
-        guard !locations.isEmpty else {
-            print("[Maps] No locations to show")
-            return
-        }
-
-        // Create map items from the track points
         var mapItems: [MKMapItem] = []
 
-        // Add start point
         if let first = locations.first {
             let startCoord = CLLocationCoordinate2D(latitude: first.latitude, longitude: first.longitude)
-            let startPlacemark = MKPlacemark(coordinate: startCoord)
-            let startItem = MKMapItem(placemark: startPlacemark)
+            let startItem = MKMapItem(placemark: MKPlacemark(coordinate: startCoord))
             startItem.name = "Start"
             mapItems.append(startItem)
-            print("[Maps] Start: \(first.latitude), \(first.longitude)")
         }
 
-        // Add end point if different from start
         if let last = locations.last, locations.count > 1 {
             let endCoord = CLLocationCoordinate2D(latitude: last.latitude, longitude: last.longitude)
-            let endPlacemark = MKPlacemark(coordinate: endCoord)
-            let endItem = MKMapItem(placemark: endPlacemark)
+            let endItem = MKMapItem(placemark: MKPlacemark(coordinate: endCoord))
             endItem.name = "End"
             mapItems.append(endItem)
-            print("[Maps] End: \(last.latitude), \(last.longitude)")
         }
 
-        // Open Apple Maps directly
-        print("[Maps] Opening Apple Maps with \(mapItems.count) items")
         MKMapItem.openMaps(with: mapItems, launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
         ])
@@ -602,7 +603,7 @@ struct StatsHistoryView: View {
         let gpxContent = historyManager.exportDayToGPX(dailyStats)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        let filename = "NextTrack-\(dateFormatter.string(from: dailyStats.date)).gpx"
+        let filename = "BeenThere-\(dateFormatter.string(from: dailyStats.date)).gpx"
 
         if let url = historyManager.saveGPXFile(content: gpxContent, filename: filename) {
             exportItem = IdentifiableURL(url: url)
@@ -651,14 +652,33 @@ struct StatsHistoryView: View {
         }
     }
 
+    private var totalUniqueDays: Int {
+        historyManager.dailyStats.count
+    }
+
+    private var averageDistancePerSession: Double {
+        guard sessionsForRange > 0 else { return 0 }
+        return distanceForRange / Double(sessionsForRange)
+    }
+
+    private var averageSpeed: Double {
+        guard durationForRange > 0 else { return 0 }
+        // meters per second to mph
+        let metersPerSecond = distanceForRange / durationForRange
+        return metersPerSecond * 2.23694
+    }
+
     // MARK: - Formatters
 
     private func formatDistance(_ meters: Double) -> String {
         let miles = meters / 1609.344
-        if miles >= 0.1 {
+        if miles >= 100 {
+            return String(format: "%.0f mi", miles)
+        } else if miles >= 10 {
+            return String(format: "%.1f mi", miles)
+        } else if miles >= 0.1 {
             return String(format: "%.2f mi", miles)
         }
-        // Show feet for very short distances
         let feet = meters * 3.28084
         return String(format: "%.0f ft", feet)
     }
@@ -671,9 +691,112 @@ struct StatsHistoryView: View {
         }
         return "\(minutes)m"
     }
+
+    private func formatLargeNumber(_ number: Int) -> String {
+        if number >= 1000000 {
+            return String(format: "%.1fM", Double(number) / 1000000)
+        } else if number >= 1000 {
+            return String(format: "%.1fK", Double(number) / 1000)
+        }
+        return "\(number)"
+    }
+
+    private func formatSpeed(_ mph: Double) -> String {
+        return String(format: "%.1f mph", mph)
+    }
 }
 
-// MARK: - Stat Card Large
+// MARK: - Hero Stat Card
+
+struct HeroStatCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let icon: String
+    let gradient: [Color]
+
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                animatedIcon
+                Spacer()
+            }
+
+            Spacer()
+
+            Text(value)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.white.opacity(0.9))
+
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .padding()
+        .frame(height: 140)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: gradient,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: gradient.first?.opacity(0.3) ?? .clear, radius: 8, x: 0, y: 4)
+        .onAppear {
+            isAnimating = true
+        }
+    }
+
+    @ViewBuilder
+    private var animatedIcon: some View {
+        Image(systemName: icon)
+            .font(.title2)
+            .foregroundColor(.white.opacity(0.9))
+            .symbolEffect(.variableColor.iterative.reversing, options: .repeating, value: isAnimating)
+    }
+}
+
+// MARK: - Quick Stat Pill
+
+struct QuickStatPill: View {
+    let label: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Stat Card Large (kept for compatibility)
 
 struct StatCardLarge: View {
     let title: String
@@ -704,7 +827,7 @@ struct StatCardLarge: View {
     }
 }
 
-// MARK: - Session Row View (Collapsible)
+// MARK: - Session Row View
 
 struct SessionRowView: View {
     let session: TrackingSession
@@ -716,7 +839,7 @@ struct SessionRowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header (always visible) - entire row is tappable
+            // Header (always visible)
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -753,7 +876,7 @@ struct SessionRowView: View {
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
             }
             .padding()
-            .contentShape(Rectangle())  // Makes entire area tappable
+            .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isExpanded.toggle()
@@ -889,7 +1012,7 @@ struct SessionRowView: View {
                 .padding()
             }
         }
-        .background(Color(.systemGray6))
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(12)
         .alert("Delete Session?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -1024,7 +1147,7 @@ struct DailyStatsRowView: View {
                         )
 
                         SessionStatItem(
-                            title: "Full Date",
+                            title: "Date",
                             value: "",
                             icon: "calendar",
                             color: .gray
@@ -1124,7 +1247,7 @@ struct DailyStatsRowView: View {
                 .padding()
             }
         }
-        .background(Color(.systemGray6))
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(12)
         .alert("Delete Session?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
