@@ -17,6 +17,7 @@ struct AppLockView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var biometricType: String = "Face ID"
     @State private var canUseBiometrics: Bool = false
+    @State private var hasTriggeredBiometric: Bool = false  // Prevent multiple auto-triggers
 
     private let passcodeLength = 4
 
@@ -150,8 +151,9 @@ struct AppLockView: View {
         }
         .onAppear {
             checkBiometricAvailability()
-            if securitySettings.lockMethod == .biometric && canUseBiometrics {
-                // Auto-trigger biometric on appear
+            // Auto-trigger biometric on appear, but only once
+            if securitySettings.lockMethod == .biometric && canUseBiometrics && !hasTriggeredBiometric {
+                hasTriggeredBiometric = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     authenticateWithBiometrics()
                 }

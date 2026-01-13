@@ -31,8 +31,9 @@ struct NextTrackApp: App {
     @State private var shatter = false
 
     /// App lock state
-    @State private var isUnlocked = false
+    @State private var isUnlocked = true  // Start unlocked - only lock when returning from background
     @State private var lockBackgroundTime: Date?
+    @State private var hasEnteredBackgroundOnce = false  // Track if app has been backgrounded
 
     init() {
         // Register background tasks
@@ -87,8 +88,8 @@ struct NextTrackApp: App {
                     .zIndex(2)
                 }
 
-                // App lock overlay
-                if settingsManager.securitySettings.isEnabled && !isUnlocked && !showSplash {
+                // App lock overlay - only show after app has been backgrounded at least once
+                if settingsManager.securitySettings.isEnabled && !isUnlocked && !showSplash && hasEnteredBackgroundOnce {
                     AppLockView(
                         isUnlocked: $isUnlocked,
                         securitySettings: settingsManager.securitySettings
@@ -127,6 +128,7 @@ struct NextTrackApp: App {
 
             // Save time for lock delay check
             lockBackgroundTime = Date()
+            hasEnteredBackgroundOnce = true  // Mark that app has been backgrounded
 
             // Ensure auto-export task is scheduled
             if AutoExportManager.shared.isEnabled {
