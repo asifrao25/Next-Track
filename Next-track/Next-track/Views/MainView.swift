@@ -489,6 +489,7 @@ struct MainView: View {
                 Section {
                     NavigationLink {
                         SecuritySettingsView()
+                            .environmentObject(settingsManager)
                     } label: {
                         HStack(spacing: 14) {
                             ZStack {
@@ -532,7 +533,6 @@ struct MainView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
                 } header: {
                     Label("Security", systemImage: "lock.shield.fill")
                 } footer: {
