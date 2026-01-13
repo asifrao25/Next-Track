@@ -31,6 +31,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Next-track uses the camera to scan QR codes from PhoneTrack for easy configuration.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Been There uses Face ID to secure and protect your travel data from unauthorized access.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Next-track needs continuous location access to send your position to Nextcloud PhoneTrack, even when the app is in the background.</string>
 	<key>NSLocationAlwaysUsageDescription</key>

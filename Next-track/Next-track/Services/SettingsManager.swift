@@ -29,12 +29,17 @@ class SettingsManager: ObservableObject {
         didSet { trackingStats.save() }
     }
 
+    @Published var securitySettings: SecuritySettings {
+        didSet { securitySettings.save() }
+    }
+
     @Published var isConfigured: Bool = false
 
     private init() {
         self.serverConfig = ServerConfig.load()
         self.trackingSettings = TrackingSettings.load()
         self.trackingStats = TrackingStats.load()
+        self.securitySettings = SecuritySettings.load()
         self.isConfigured = serverConfig.isValid
     }
 

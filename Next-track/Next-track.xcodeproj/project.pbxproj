@@ -34,6 +34,7 @@
 		DAC048833DBCB45E64DA82FC /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4670E34D04416D5781ABF /* UserDefaultsKeys.swift */; };
 		DC1F6BE7E2ED4284BEA9EE55 /* VisitedCity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */; };
 		E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */; };
+		E0QGF0012F162B0000B1E23B /* QuickGeofencePillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0QGF0002F162B0000B1E23B /* QuickGeofencePillView.swift */; };
 		E076BA082F1443F60017713E /* ShatterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA072F1443F60017713E /* ShatterView.swift */; };
 		E076BA0D2F14FF920017713E /* VisitedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA0B2F14FF920017713E /* VisitedView.swift */; };
 		E076BA0E2F14FF920017713E /* PinMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA092F14FF920017713E /* PinMarkerView.swift */; };
@@ -69,6 +70,7 @@
 		E0BFC0782F11B33800B1E23B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0772F11B33800B1E23B /* AppError.swift */; };
 		E0BFC07A2F11B35700B1E23B /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0792F11B35700B1E23B /* Logger.swift */; };
 		E0BFC07C2F11B38500B1E23B /* ErrorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */; };
+		E0RST0012F163C0000B1E23B /* RestartBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0RST0002F163C0000B1E23B /* RestartBannerView.swift */; };
 		E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */; };
 		E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */; };
 		E0BFC0822F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */; };
@@ -77,6 +79,9 @@
 		E0BFC08A2F1317DE00B1E23B /* FullBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BFC0892F1317DE00B1E23B /* FullBackupManager.swift */; };
 		E0GEO1234567890ABCDEF01 /* countries.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0GEO9876543210FEDCBA01 /* countries.geojson */; };
 		E0LAD1234567890ABCDEF02 /* uk_lads.geojson in Resources */ = {isa = PBXBuildFile; fileRef = E0LAD9876543210FEDCBA02 /* uk_lads.geojson */; };
+		E0SEC0012F164A0000B1E23B /* SecuritySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0002F164A0000B1E23B /* SecuritySettings.swift */; };
+		E0SEC0032F164A0000B1E23B /* AppLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0022F164A0000B1E23B /* AppLockView.swift */; };
+		E0SEC0052F164A0000B1E23B /* SecuritySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0042F164A0000B1E23B /* SecuritySettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -107,6 +112,7 @@
 		CD50B260139B4567B56B9236 /* Insights.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Insights.swift; sourceTree = "<group>"; };
 		DBDDE8A370F543099B9BB3E5 /* CityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityTracker.swift; sourceTree = "<group>"; };
 		E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickFrequencyPillView.swift; sourceTree = "<group>"; };
+		E0QGF0002F162B0000B1E23B /* QuickGeofencePillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickGeofencePillView.swift; sourceTree = "<group>"; };
 		E076BA072F1443F60017713E /* ShatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShatterView.swift; sourceTree = "<group>"; };
 		E076BA092F14FF920017713E /* PinMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinMarkerView.swift; sourceTree = "<group>"; };
 		E076BA0A2F14FF920017713E /* VisitedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisitedMapView.swift; sourceTree = "<group>"; };
@@ -142,6 +148,7 @@
 		E0BFC0772F11B33800B1E23B /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		E0BFC0792F11B35700B1E23B /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
+		E0RST0002F163C0000B1E23B /* RestartBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestartBannerView.swift; sourceTree = "<group>"; };
 		E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		E0BFC0812F12F9C400B1E23B /* Video_Duration_and_Animation_Adjusted.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = Video_Duration_and_Animation_Adjusted.mp4; sourceTree = "<group>"; };
@@ -150,6 +157,9 @@
 		E0BFC0892F1317DE00B1E23B /* FullBackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullBackupManager.swift; sourceTree = "<group>"; };
 		E0GEO9876543210FEDCBA01 /* countries.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = countries.geojson; sourceTree = "<group>"; };
 		E0LAD9876543210FEDCBA02 /* uk_lads.geojson */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = uk_lads.geojson; sourceTree = "<group>"; };
+		E0SEC0002F164A0000B1E23B /* SecuritySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecuritySettings.swift; sourceTree = "<group>"; };
+		E0SEC0022F164A0000B1E23B /* AppLockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockView.swift; sourceTree = "<group>"; };
+		E0SEC0042F164A0000B1E23B /* SecuritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecuritySettingsView.swift; sourceTree = "<group>"; };
 		E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPreviewView.swift; sourceTree = "<group>"; };
 		F2645313D49843ABADFFFAA9 /* PlacesTab/PlacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesTab/PlacesView.swift; sourceTree = "<group>"; };
 		FEB78ECA975363312D362521 /* PhoneTrackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneTrackAPI.swift; sourceTree = "<group>"; };
@@ -222,16 +232,19 @@
 			children = (
 				E0A6A9192F0DDB1A00D86263 /* GeofenceSettingsView.swift */,
 				E0BFC05A2F1071A800B1E23B /* CountriesTab */,
+				E0SEC0062F164A0000B1E23B /* Security */,
 				4C35AAAAD93F2CE96B3BB5E4 /* MainView.swift */,
 				E0BFC07D2F11B3A500B1E23B /* OnboardingView.swift */,
 				E0BFC07F2F12ED2700B1E23B /* SplashScreenView.swift */,
 				E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */,
+				E0QGF0002F162B0000B1E23B /* QuickGeofencePillView.swift */,
 				E0BFC0872F13162B00B1E23B /* iCloudSyncPopupView.swift */,
 				E076BA0C2F14FF920017713E /* VisitedTab */,
 				E0A6A91B2F0DE02400D86263 /* CustomTitleHeaderView.swift */,
 				E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */,
 				E076BA182F15326F0017713E /* BackupRestoreView.swift */,
 				E0BFC07B2F11B38500B1E23B /* ErrorBannerView.swift */,
+				E0RST0002F163C0000B1E23B /* RestartBannerView.swift */,
 				E076BA072F1443F60017713E /* ShatterView.swift */,
 				CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */,
 				E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */,
@@ -255,6 +268,7 @@
 				B11E03C0F45DFFECE74D7CA2 /* ServerConfig.swift */,
 				E0A6A9152F0DD9D700D86263 /* TrackingHistory.swift */,
 				E0BFC0772F11B33800B1E23B /* AppError.swift */,
+				E0SEC0002F164A0000B1E23B /* SecuritySettings.swift */,
 				3E59F9CEAC0AAD961A876C93 /* TrackingSettings.swift */,
 				4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */,
 				CD50B260139B4567B56B9236 /* Insights.swift */,
@@ -305,6 +319,15 @@
 				E0BFC06A2F11366800B1E23B /* UKCityDetailSheet.swift */,
 			);
 			path = UKCitiesTab;
+			sourceTree = "<group>";
+		};
+		E0SEC0062F164A0000B1E23B /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				E0SEC0022F164A0000B1E23B /* AppLockView.swift */,
+				E0SEC0042F164A0000B1E23B /* SecuritySettingsView.swift */,
+			);
+			path = Security;
 			sourceTree = "<group>";
 		};
 		ED110337C62F0F939C8869CC /* Resources */ = {
@@ -433,6 +456,7 @@
 				04358530F98346A4BB37F44A /* PlacesTab/PlacesView.swift in Sources */,
 				22A0363BA41C4FD793295655 /* CitiesTab/CitiesView.swift in Sources */,
 				E0BFC07C2F11B38500B1E23B /* ErrorBannerView.swift in Sources */,
+				E0RST0012F163C0000B1E23B /* RestartBannerView.swift in Sources */,
 				E0BFC05B2F1071A800B1E23B /* CountriesListView.swift in Sources */,
 				E0BFC05C2F1071A800B1E23B /* CountryDetailView.swift in Sources */,
 				E0BFC05D2F1071A800B1E23B /* CountriesView.swift in Sources */,
@@ -452,6 +476,7 @@
 				6BBD5885F97941F090273805 /* InsightsManager.swift in Sources */,
 				E0BFC0882F13162B00B1E23B /* iCloudSyncPopupView.swift in Sources */,
 				E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */,
+				E0QGF0012F162B0000B1E23B /* QuickGeofencePillView.swift in Sources */,
 				E0BFC0742F114DD800B1E23B /* AddUKCitySheet.swift in Sources */,
 				E0BFC0762F11B27100B1E23B /* ErrorStateManager.swift in Sources */,
 				E0BFC0722F1136B000B1E23B /* UKCitiesManager.swift in Sources */,
@@ -459,6 +484,9 @@
 				DC1F6BE7E2ED4284BEA9EE55 /* VisitedCity.swift in Sources */,
 				CC21C639C49E4BD68A0BC3E1 /* Insights.swift in Sources */,
 				D539ED02DD184478A42988FC /* DetectedPlace.swift in Sources */,
+				E0SEC0012F164A0000B1E23B /* SecuritySettings.swift in Sources */,
+				E0SEC0032F164A0000B1E23B /* AppLockView.swift in Sources */,
+				E0SEC0052F164A0000B1E23B /* SecuritySettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

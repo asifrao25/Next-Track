@@ -204,9 +204,13 @@ struct MainView: View {
                         trackingOverlay
                             .padding(.bottom, 6)
 
-                        // Quick frequency selector - flush with navbar top
-                        QuickFrequencyPillView()
-                            .padding(.bottom, 78)  // Flush with navbar top edge
+                        // Quick action pills - frequency on left, geofence on right
+                        HStack(spacing: 16) {
+                            QuickFrequencyPillView()
+                            QuickGeofencePillView()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 78)  // Flush with navbar top edge
                     }
                 }
             }
@@ -479,6 +483,60 @@ struct MainView: View {
                     .hapticOnTap()
                 } header: {
                     Label("Backup & Restore", systemImage: "externaldrive.fill")
+                }
+
+                // Security Section
+                Section {
+                    NavigationLink {
+                        SecuritySettingsView()
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.teal, .cyan],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 44, height: 44)
+
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("App Lock")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(settingsManager.securitySettings.isEnabled ? Color.green : Color.gray)
+                                        .frame(width: 8, height: 8)
+                                    Text(settingsManager.securitySettings.isEnabled ?
+                                         (settingsManager.securitySettings.lockMethod == .biometric ? "Face ID / Touch ID" : "Passcode") :
+                                         "Off")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Label("Security", systemImage: "lock.shield.fill")
+                } footer: {
+                    Text("Protect your travel data with Face ID, Touch ID, or a passcode.")
                 }
 
                 // Tracking Section
@@ -762,6 +820,7 @@ struct MainView: View {
                         .foregroundColor(.white)
                 )
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(isTracking ? "Stop tracking" : "Start tracking")
         .accessibilityHint(isTracking ? "Double tap to stop location tracking" : "Double tap to start location tracking")
         .accessibilityAddTraits(.isButton)
@@ -771,7 +830,7 @@ struct MainView: View {
 
     private var trackingOverlay: some View {
         VStack(spacing: 10) {
-            HStack(alignment: .center, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
                 // Left stat: Distance (orange)
                 OverlayStatView(
                     value: formatDistance(historyManager.todaysDistance),
@@ -779,6 +838,8 @@ struct MainView: View {
                     icon: "figure.walk",
                     color: .orange
                 )
+
+                Spacer()
 
                 // Center on location button
                 Button {
@@ -790,6 +851,7 @@ struct MainView: View {
                         .frame(width: 34, height: 34)
                         .background(Circle().fill(Color.blue))
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Center on my location")
                 .accessibilityHint("Centers the map on your current location")
 
@@ -807,8 +869,11 @@ struct MainView: View {
                         .frame(width: 34, height: 34)
                         .background(Circle().fill(Color.purple))
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Expand map")
                 .accessibilityHint("Opens the map in full screen mode")
+
+                Spacer()
 
                 // Right stat: Points Today (blue)
                 OverlayStatView(

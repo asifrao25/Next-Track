@@ -44,28 +44,35 @@ struct QuickFrequencyPillView: View {
                 }
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Image(systemName: "timer")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
 
-                Text("Update frequency")
-                    .font(.system(size: 12, weight: .medium))
+                Text("Frequency")
+                    .font(.system(size: 12, weight: .semibold))
 
                 Text(shortDisplayName)
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.8)
+            }
+            .foregroundColor(.white)
+            .frame(width: 145, height: 36)
+            .background(
+                Capsule()
+                    .fill(
                         LinearGradient(
-                            colors: [.green, .teal],
+                            colors: [Color.green, Color.teal],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
-
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-            }
-            .foregroundColor(.primary)
+            )
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
     }
 
     private func selectPreset(_ preset: IntervalPreset) {
