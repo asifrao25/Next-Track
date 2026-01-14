@@ -33,6 +33,10 @@
 		D5F89A5F1DF16B39C36B02DC /* BatteryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9899C19CAEA479C655094AFE /* BatteryMonitor.swift */; };
 		DAC048833DBCB45E64DA82FC /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4670E34D04416D5781ABF /* UserDefaultsKeys.swift */; };
 		DC1F6BE7E2ED4284BEA9EE55 /* VisitedCity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B10B6DC1CEB4EF2A062932C /* VisitedCity.swift */; };
+		E01382F02F17F9BE002C8C60 /* TourOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01382EF2F17F9BE002C8C60 /* TourOverlayView.swift */; };
+		E01382F22F17F9F4002C8C60 /* TourTooltipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01382F12F17F9F4002C8C60 /* TourTooltipView.swift */; };
+		E01382F42F17FA02002C8C60 /* TourStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01382F32F17FA02002C8C60 /* TourStep.swift */; };
+		E01382F62F17FA46002C8C60 /* TourHighlightView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01382F52F17FA46002C8C60 /* TourHighlightView 2.swift */; };
 		E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */; };
 		E076BA082F1443F60017713E /* ShatterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA072F1443F60017713E /* ShatterView.swift */; };
 		E076BA0D2F14FF920017713E /* VisitedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076BA0B2F14FF920017713E /* VisitedView.swift */; };
@@ -84,6 +88,7 @@
 		E0SEC0012F164A0000B1E23B /* SecuritySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0002F164A0000B1E23B /* SecuritySettings.swift */; };
 		E0SEC0032F164A0000B1E23B /* AppLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0022F164A0000B1E23B /* AppLockView.swift */; };
 		E0SEC0052F164A0000B1E23B /* SecuritySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0SEC0042F164A0000B1E23B /* SecuritySettingsView.swift */; };
+		E0FBK0012F170A0000B1E23B /* FeedbackFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0FBK0002F170A0000B1E23B /* FeedbackFormView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -113,6 +118,10 @@
 		CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CD50B260139B4567B56B9236 /* Insights.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Insights.swift; sourceTree = "<group>"; };
 		DBDDE8A370F543099B9BB3E5 /* CityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityTracker.swift; sourceTree = "<group>"; };
+		E01382EF2F17F9BE002C8C60 /* TourOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourOverlayView.swift; sourceTree = "<group>"; };
+		E01382F12F17F9F4002C8C60 /* TourTooltipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourTooltipView.swift; sourceTree = "<group>"; };
+		E01382F32F17FA02002C8C60 /* TourStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourStep.swift; sourceTree = "<group>"; };
+		E01382F52F17FA46002C8C60 /* TourHighlightView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TourHighlightView 2.swift"; sourceTree = "<group>"; };
 		E076BA052F143AC40017713E /* QuickFrequencyPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickFrequencyPillView.swift; sourceTree = "<group>"; };
 		E076BA072F1443F60017713E /* ShatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShatterView.swift; sourceTree = "<group>"; };
 		E076BA092F14FF920017713E /* PinMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinMarkerView.swift; sourceTree = "<group>"; };
@@ -167,6 +176,7 @@
 		E8E44A2D0616D9C0AC17C915 /* MapPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPreviewView.swift; sourceTree = "<group>"; };
 		F2645313D49843ABADFFFAA9 /* PlacesTab/PlacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesTab/PlacesView.swift; sourceTree = "<group>"; };
 		FEB78ECA975363312D362521 /* PhoneTrackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneTrackAPI.swift; sourceTree = "<group>"; };
+		E0FBK0002F170A0000B1E23B /* FeedbackFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackFormView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -253,6 +263,10 @@
 				E0RST0002F163C0000B1E23B /* RestartBannerView.swift */,
 				E076BA072F1443F60017713E /* ShatterView.swift */,
 				CBDD3DC27AC7D30E608E5F6E /* SettingsView.swift */,
+				E01382F52F17FA46002C8C60 /* TourHighlightView 2.swift */,
+				E01382EF2F17F9BE002C8C60 /* TourOverlayView.swift */,
+				E01382F12F17F9F4002C8C60 /* TourTooltipView.swift */,
+				E0FBK0002F170A0000B1E23B /* FeedbackFormView.swift */,
 				E0A6A9172F0DDAF900D86263 /* StatsHistoryView.swift */,
 				C20D411677CE474BB13A34D8 /* InsightsTab/InsightsView.swift */,
 				F2645313D49843ABADFFFAA9 /* PlacesTab/PlacesView.swift */,
@@ -272,6 +286,7 @@
 				E0BFC06F2F11369E00B1E23B /* UKCityData.swift */,
 				E076BA1A2F153CFD0017713E /* TrackingSettings.swift */,
 				B11E03C0F45DFFECE74D7CA2 /* ServerConfig.swift */,
+				E01382F32F17FA02002C8C60 /* TourStep.swift */,
 				E0A6A9152F0DD9D700D86263 /* TrackingHistory.swift */,
 				E0BFC0772F11B33800B1E23B /* AppError.swift */,
 				E0SEC0002F164A0000B1E23B /* SecuritySettings.swift */,
@@ -425,6 +440,7 @@
 				E0BFC0702F11369E00B1E23B /* UKCityData.swift in Sources */,
 				E0BFC0862F1314BA00B1E23B /* iCloudSyncManager.swift in Sources */,
 				E0A6A9162F0DD9D700D86263 /* TrackingHistory.swift in Sources */,
+				E01382F42F17FA02002C8C60 /* TourStep.swift in Sources */,
 				9B29C10F80635B8C9AB13106 /* BackgroundTaskManager.swift in Sources */,
 				E0A6A91A2F0DDB1A00D86263 /* GeofenceSettingsView.swift in Sources */,
 				E0BFC0502F10710C00B1E23B /* CountriesManager.swift in Sources */,
@@ -455,6 +471,7 @@
 				E0BFC0542F10718700B1E23B /* GeoJSONModels.swift in Sources */,
 				E0A6A9142F0DD92100D86263 /* HapticManager.swift in Sources */,
 				E0BFC08A2F1317DE00B1E23B /* FullBackupManager.swift in Sources */,
+				E01382F62F17FA46002C8C60 /* TourHighlightView 2.swift in Sources */,
 				E076BA1D2F17A5170017713E /* PhotoImportView.swift in Sources */,
 				E0BFC07E2F11B3A500B1E23B /* OnboardingView.swift in Sources */,
 				E0BFC0802F12ED2700B1E23B /* SplashScreenView.swift in Sources */,
@@ -468,6 +485,7 @@
 				E0BFC05B2F1071A800B1E23B /* CountriesListView.swift in Sources */,
 				E0BFC05C2F1071A800B1E23B /* CountryDetailView.swift in Sources */,
 				E0BFC05D2F1071A800B1E23B /* CountriesView.swift in Sources */,
+				E01382F22F17F9F4002C8C60 /* TourTooltipView.swift in Sources */,
 				E0BFC05E2F1071A800B1E23B /* CountriesMapView.swift in Sources */,
 				E0BFC05F2F1071A800B1E23B /* AddCountrySheet.swift in Sources */,
 				D5A336405FFA43D6B0017AEC /* Components/ScrollableTabBar.swift in Sources */,
@@ -481,6 +499,7 @@
 				E076BA192F15326F0017713E /* BackupRestoreView.swift in Sources */,
 				3E39533E64764515B5E4F4DF /* PlaceDetectionManager.swift in Sources */,
 				E0BFC07A2F11B35700B1E23B /* Logger.swift in Sources */,
+				E01382F02F17F9BE002C8C60 /* TourOverlayView.swift in Sources */,
 				6BBD5885F97941F090273805 /* InsightsManager.swift in Sources */,
 				E0BFC0882F13162B00B1E23B /* iCloudSyncPopupView.swift in Sources */,
 				E076BA062F143AC40017713E /* QuickFrequencyPillView.swift in Sources */,
@@ -495,6 +514,7 @@
 				E0SEC0012F164A0000B1E23B /* SecuritySettings.swift in Sources */,
 				E0SEC0032F164A0000B1E23B /* AppLockView.swift in Sources */,
 				E0SEC0052F164A0000B1E23B /* SecuritySettingsView.swift in Sources */,
+				E0FBK0012F170A0000B1E23B /* FeedbackFormView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -7,9 +7,17 @@
 
 import Foundation
 import Combine
+import SwiftUI
 
 class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
+
+    // Tour flags
+    @AppStorage("hasSeenTrackTabTour") var hasSeenTrackTabTour: Bool = false
+    @AppStorage("hasSeenVisitedTabTour") var hasSeenVisitedTabTour: Bool = false
+
+    // Tour triggers (for replaying from settings)
+    @Published var triggerVisitedTabTour: Bool = false
 
     @Published var serverConfig: ServerConfig {
         didSet {

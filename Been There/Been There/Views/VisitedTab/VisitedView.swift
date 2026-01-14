@@ -27,6 +27,9 @@ struct VisitedView: View {
     @State private var showPhotoImport = false
     @State private var selectedSort: CountrySortOption = .recentVisit
 
+    // Tour state
+    @State private var showVisitedTabTour = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -91,6 +94,7 @@ struct VisitedView: View {
                     .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
+                    .tourHighlight(.visitedTopStats)
 
                     Spacer()
                 }
@@ -107,6 +111,7 @@ struct VisitedView: View {
                                 VisitedControlButton(icon: "plus") {
                                     showAddActionSheet = true
                                 }
+                                .tourHighlight(.visitedAddButton)
 
                                 // List/Globe toggle
                                 VisitedControlButton(icon: "list.bullet") {
@@ -115,6 +120,7 @@ struct VisitedView: View {
                                     }
                                     HapticManager.shared.buttonTap()
                                 }
+                                .tourHighlight(.visitedListButton)
                             }
                             .padding(8)
                             .background(
@@ -135,11 +141,13 @@ struct VisitedView: View {
                                 VisitedControlButton(icon: "location.fill") {
                                     mapController.zoomToCurrentLocation()
                                 }
+                                .tourHighlight(.visitedMyLocationButton)
 
                                 // Globe view
                                 VisitedControlButton(icon: "globe") {
                                     mapController.zoomToGlobe()
                                 }
+                                .tourHighlight(.visitedGlobeButton)
 
                                 // Map style toggle (3D globe / flat map)
                                 VisitedControlButton(
@@ -147,16 +155,19 @@ struct VisitedView: View {
                                 ) {
                                     mapController.toggleGlobeStyle()
                                 }
+                                .tourHighlight(.visitedMapButton)
 
                                 // Zoom in
                                 VisitedControlButton(icon: "plus.magnifyingglass") {
                                     mapController.zoomIn()
                                 }
+                                .tourHighlight(.visitedZoomIn)
 
                                 // Zoom out
                                 VisitedControlButton(icon: "minus.magnifyingglass") {
                                     mapController.zoomOut()
                                 }
+                                .tourHighlight(.visitedZoomOut)
                             }
                             .padding(8)
                             .background(
@@ -227,6 +238,43 @@ struct VisitedView: View {
             }
             .sheet(isPresented: $showPhotoImport) {
                 PhotoImportView()
+            }
+            .overlayPreferenceValue(TourAnchorPreferenceKey.self) { anchors in
+                GeometryReader { geometry in
+                    if showVisitedTabTour && !showListView {
+                        TourOverlayView(
+                            isShowing: $showVisitedTabTour,
+                            anchors: anchors,
+                            geometry: geometry,
+                            steps: TourStep.visitedTabSteps,
+                            onComplete: {
+                                settingsManager.hasSeenVisitedTabTour = true
+                            }
+                        )
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .transition(.opacity)
+                        .zIndex(200)
+                    }
+                }
+                .ignoresSafeArea()
+            }
+            .onAppear {
+                // Show tour if not seen yet
+                if !settingsManager.hasSeenVisitedTabTour {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showVisitedTabTour = true
+                    }
+                }
+            }
+            .onChange(of: settingsManager.triggerVisitedTabTour) { _, trigger in
+                if trigger {
+                    settingsManager.triggerVisitedTabTour = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showVisitedTabTour = true
+                        }
+                    }
+                }
             }
         }
     }

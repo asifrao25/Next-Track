@@ -41,6 +41,12 @@ struct MainView: View {
     @State private var hasShownICloudPopup = false
     @State private var aboutCreatorExpanded = false
 
+    // Tour state
+    @State private var showTrackTabTour = false
+
+    // Feedback form state
+    @State private var showFeedbackForm = false
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Tab content
@@ -102,6 +108,18 @@ struct MainView: View {
 
             // Center map on current location when app loads
             centerMapOnCurrentLocation()
+
+            // Show Track tab tour on first launch (after delay to let UI settle)
+            if !settingsManager.hasSeenTrackTabTour {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    // Only show if no other popups are visible
+                    if !showICloudPopup {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showTrackTabTour = true
+                        }
+                    }
+                }
+            }
         }
         .onChange(of: trackingStateManager.isTracking) { _, newValue in
             // Keep local state in sync with TrackingStateManager
@@ -143,6 +161,26 @@ struct MainView: View {
                     .zIndex(100)
             }
         }
+        .overlayPreferenceValue(TourAnchorPreferenceKey.self) { anchors in
+            GeometryReader { geometry in
+                // Track tab tour overlay (only show when no other popups active)
+                if showTrackTabTour && selectedTab == AppTab.track.rawValue && !showICloudPopup {
+                    TourOverlayView(
+                        isShowing: $showTrackTabTour,
+                        anchors: anchors,
+                        geometry: geometry,
+                        steps: TourStep.trackTabSteps,
+                        onComplete: {
+                            settingsManager.hasSeenTrackTabTour = true
+                        }
+                    )
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .transition(.opacity)
+                    .zIndex(200)
+                }
+            }
+            .ignoresSafeArea()
+        }
         .onChange(of: iCloudSync.iCloudAvailable) { _, isAvailable in
             // Show popup once if iCloud becomes unavailable and we haven't shown it yet
             if !isAvailable && !hasShownICloudPopup && startupCompleted {
@@ -150,6 +188,16 @@ struct MainView: View {
                     withAnimation(.spring(response: 0.4)) {
                         showICloudPopup = true
                         hasShownICloudPopup = true
+                    }
+                }
+            }
+        }
+        .onChange(of: showICloudPopup) { _, isShowing in
+            // Show tour after iCloud popup is dismissed (if not seen yet)
+            if !isShowing && !settingsManager.hasSeenTrackTabTour && !showTrackTabTour {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showTrackTabTour = true
                     }
                 }
             }
@@ -188,6 +236,7 @@ struct MainView: View {
                             accentColor: .green
                         )
                         .padding(.horizontal, 4)
+                        .tourHighlight(.headerStats)
 
                         Spacer()
 
@@ -198,7 +247,9 @@ struct MainView: View {
                         // Quick action pills - frequency on left, geofence on right
                         HStack(spacing: 16) {
                             QuickFrequencyPillView()
+                                .tourHighlight(.frequencyPill)
                             QuickGeofencePillView()
+                                .tourHighlight(.geofencePill)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.bottom, 78)  // Flush with navbar top edge
@@ -291,23 +342,6 @@ struct MainView: View {
 
                     // Expanded Content
                     if aboutCreatorExpanded {
-                        // Send Feedback
-                        Button {
-                            if let url = URL(string: "mailto:mail@asifrao.com?subject=Been%20There%20App%20Feedback") {
-                                UIApplication.shared.open(url)
-                            }
-                            HapticManager.shared.light()
-                        } label: {
-                            HStack {
-                                Label("Send Feedback", systemImage: "envelope.fill")
-                                Spacer()
-                                Text("mail@asifrao.com")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .foregroundColor(.primary)
-
                         // Buy Me a Coffee (Placeholder)
                         Button {
                             HapticManager.shared.medium()
@@ -336,6 +370,164 @@ struct MainView: View {
                     }
                 } header: {
                     Label("About the Creator", systemImage: "person.fill")
+                }
+
+                // Feedback & Suggestions Section
+                Section {
+                    Button {
+                        HapticManager.shared.light()
+                        showFeedbackForm = true
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.cyan.opacity(0.2), .purple.opacity(0.2)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 36, height: 36)
+
+                                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.cyan, .purple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Feedback & Suggestions")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                                Text("Share your thoughts and help us improve")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Label("Share Your Feedback", systemImage: "heart.fill")
+                }
+
+                // Help & Tips Section - App Tours
+                Section {
+                    // Track Tab Tour
+                    Button {
+                        HapticManager.shared.light()
+                        selectedTab = AppTab.track.rawValue
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showTrackTabTour = true
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.cyan, .purple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 36, height: 36)
+
+                                Image(systemName: "location.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Track Tab Tour")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                                Text("Learn about tracking controls")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "play.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.cyan, .purple],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Visited Tab Tour
+                    Button {
+                        HapticManager.shared.light()
+                        selectedTab = AppTab.visited.rawValue
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            settingsManager.triggerVisitedTabTour = true
+                        }
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.teal, .green],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 36, height: 36)
+
+                                Image(systemName: "globe.americas.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Visited Tab Tour")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                                Text("Explore your travel tracking features")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "play.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.teal, .green],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Label("App Tours", systemImage: "questionmark.circle.fill")
                 }
 
                 // Connection Section
@@ -591,6 +783,9 @@ struct MainView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showFeedbackForm) {
+                FeedbackFormView()
+            }
         }
     }
 
@@ -845,9 +1040,11 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Center on my location")
                 .accessibilityHint("Centers the map on your current location")
+                .tourHighlight(.locationButton)
 
                 // Center: Round Start/Stop Button
                 roundTrackingButton
+                    .tourHighlight(.playButton)
 
                 // Expand to full screen button
                 Button {
@@ -863,6 +1060,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Expand map")
                 .accessibilityHint("Opens the map in full screen mode")
+                .tourHighlight(.fullScreenButton)
 
                 Spacer()
 
