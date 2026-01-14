@@ -17,6 +17,8 @@ struct VisitedMapView: View {
     @ObservedObject var mapController: VisitedMapController
     @StateObject private var searchCompleter = CitySearchCompleter()
 
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isMapActive = true
     @State private var selectedCountry: VisitedCountry?
     @State private var selectedCity: VisitedCity?
 
@@ -52,9 +54,11 @@ struct VisitedMapView: View {
 
     var body: some View {
         ZStack {
-            // Main globe map with MapReader for coordinate conversion
-            MapReader { proxy in
-                Map(position: $mapController.cameraPosition, interactionModes: .all) {
+            // Only render map when app is active to prevent watchdog timeout
+            if isMapActive {
+                // Main globe map with MapReader for coordinate conversion
+                MapReader { proxy in
+                    Map(position: $mapController.cameraPosition, interactionModes: .all) {
                     // Country flag pins for visited countries
                     ForEach(countriesManager.visitedCountries) { country in
                         if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
@@ -184,6 +188,10 @@ struct VisitedMapView: View {
                         }
                 )
             }
+            } else {
+                // Placeholder while app is in background - prevents watchdog timeout
+                Color.black
+            }
 
             // Long-press timer overlay - positioned above touch point so finger doesn't hide it
             if showTimerOverlay {
@@ -227,6 +235,20 @@ struct VisitedMapView: View {
         }
         .onAppear {
             mapController.playIntroAnimation()
+        }
+        // Pause map rendering when app goes to background to prevent watchdog timeout
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                isMapActive = false
+            case .active:
+                // Small delay to ensure smooth transition back
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isMapActive = true
+                }
+            default:
+                break
+            }
         }
     }
 

@@ -78,18 +78,9 @@ struct CitiesView: View {
                 // Fixed header at top
                 VStack(spacing: 0) {
                     CustomTitleHeaderView(
-                        connectionMonitor: connectionMonitor,
-                        batteryMonitor: batteryMonitor,
                         isTracking: TrackingStateManager.shared.isTracking,
                         hasIssues: hasIssues,
-                        pendingCount: PendingLocationQueue.shared.count,
                         currentZoneName: geofenceManager.currentZone?.name,
-                        connectionStatus: mapConnectionStatus,
-                        lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
-                        todayMiles: historyManager.todaysDistance / 1609.344,
-                        sessionDuration: historyManager.currentSession?.duration ?? 0,
-                        pointsSent: settingsManager.trackingStats.pointsSentToday,
-                        currentElevation: locationManager.currentLocation?.altitude,
                         accentColor: .blue
                     )
                     .padding(.horizontal, 4)

@@ -182,18 +182,9 @@ struct MainView: View {
                     VStack(spacing: 0) {
                         // Header at top
                         CustomTitleHeaderView(
-                            connectionMonitor: connectionMonitor,
-                            batteryMonitor: batteryMonitor,
                             isTracking: isTracking,
                             hasIssues: hasIssues,
-                            pendingCount: PendingLocationQueue.shared.count,
                             currentZoneName: geofenceManager.currentZone?.name,
-                            connectionStatus: mapConnectionStatus,
-                            lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
-                            todayMiles: historyManager.todaysDistance / 1609.344,
-                            sessionDuration: historyManager.currentSession?.duration ?? 0,
-                            pointsSent: settingsManager.trackingStats.pointsSentToday,
-                            currentElevation: locationManager.currentLocation?.altitude,
                             accentColor: .green
                         )
                         .padding(.horizontal, 4)
@@ -1161,16 +1152,29 @@ struct MainView: View {
 
         // Small delay to let the app initialize
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Step 1: Wait for geofence state check to complete (if monitoring)
-            if geoMgr.isMonitoring {
-                print("[Startup] Step 1: Waiting for geofence state check...")
+            // Check if there are enabled geofences (regardless of monitoring state)
+            let enabledZones = geoMgr.zones.filter { $0.isEnabled }
+            let hasEnabledZones = !enabledZones.isEmpty
 
+            // Step 1: If there are enabled geofences, ensure monitoring is active and check states
+            if hasEnabledZones {
+                print("[Startup] Step 1: Found \(enabledZones.count) enabled geofences")
+
+                // Start monitoring if not already active (fixes issue where monitoring state was saved as false)
+                if !geoMgr.isMonitoring {
+                    print("[Startup] Step 1: Starting geofence monitoring...")
+                    geoMgr.startMonitoringAllZones()
+                }
+
+                // Wait for zone state check to complete before deciding to auto-start
+                print("[Startup] Step 1: Checking current zone states...")
                 geoMgr.checkCurrentZoneStates {
                     print("[Startup] Step 1: Geofence state check complete")
                     self.completeStartupSequence()
                 }
             } else {
-                print("[Startup] Step 1: Geofencing not active - proceeding immediately")
+                // No geofences configured - proceed immediately
+                print("[Startup] Step 1: No geofences configured - proceeding immediately")
                 self.completeStartupSequence()
             }
         }

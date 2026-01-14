@@ -130,9 +130,43 @@ class GeofenceManager: NSObject, ObservableObject {
         print("[GeofenceManager] Loaded \(zones.count) zones (\(zones.filter { $0.isEnabled }.count) enabled)")
         loadMonitoringState()
 
+        // Set up default tracking callbacks immediately (fixes race condition)
+        // These use TrackingStateManager directly instead of waiting for MainView.onAppear
+        setupDefaultTrackingCallbacks()
+
         // Auto-restore monitoring if previously enabled
         restoreMonitoringIfNeeded()
         print("[GeofenceManager] ========== INIT COMPLETE ==========")
+    }
+
+    /// Set up default callbacks that control tracking via TrackingStateManager
+    /// This ensures callbacks are ready before any geofence state checks fire
+    private func setupDefaultTrackingCallbacks() {
+        onShouldStartTracking = { [weak self] in
+            guard self != nil else { return }
+            let trackingManager = TrackingStateManager.shared
+            let success = trackingManager.startTracking(source: .geofenceExit)
+            if success {
+                print("[GeofenceManager] Tracking started via geofence callback")
+                HapticManager.shared.trackingStarted()
+            } else {
+                print("[GeofenceManager] Start tracking blocked (debounced or already tracking)")
+            }
+        }
+
+        onShouldStopTracking = { [weak self] in
+            guard self != nil else { return }
+            let trackingManager = TrackingStateManager.shared
+            let success = trackingManager.stopTracking(source: .geofenceEnter)
+            if success {
+                print("[GeofenceManager] Tracking stopped via geofence callback")
+                HapticManager.shared.trackingStopped()
+            } else {
+                print("[GeofenceManager] Stop tracking blocked (debounced or not tracking)")
+            }
+        }
+
+        print("[GeofenceManager] Default tracking callbacks configured")
     }
 
     // MARK: - Zone Management
@@ -459,14 +493,18 @@ extension GeofenceManager: CLLocationManagerDelegate {
         let stateString = state == .inside ? "INSIDE" : (state == .outside ? "OUTSIDE" : "UNKNOWN")
         print("[GeofenceManager] State check: \(zone.name) = \(stateString)")
 
-        // Track this for state check completion callback
+        // If user is currently inside the zone, set currentZone BEFORE triggering completion
+        // This ensures isInStopZone() returns correct value when startup sequence checks it
+        if state == .inside {
+            print("[GeofenceManager] User is inside \(zone.name) - setting currentZone")
+            currentZone = zone
+        }
+
+        // Track completion AFTER setting currentZone (fixes race condition with startup sequence)
         decrementPendingStateChecks()
 
-        // If user is currently inside the zone, trigger the "enter" action
+        // If inside a zone, trigger the enter action (may be debounced)
         if state == .inside {
-            print("[GeofenceManager] User is inside \(zone.name) - triggering enter action")
-            currentZone = zone
-
             // Apply debouncing to prevent rapid toggling
             guard shouldTriggerAction() else {
                 print("[GeofenceManager] State action debounced for \(zone.name)")

@@ -47,18 +47,9 @@ struct VisitedView: View {
                 // Header overlay at top
                 VStack(spacing: 8) {
                     CustomTitleHeaderView(
-                        connectionMonitor: connectionMonitor,
-                        batteryMonitor: batteryMonitor,
                         isTracking: locationManager.isTracking,
                         hasIssues: false,
-                        pendingCount: PendingLocationQueue.shared.count,
                         currentZoneName: geofenceManager.currentZone?.name,
-                        connectionStatus: .connected,
-                        lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
-                        todayMiles: historyManager.todaysDistance / 1609.344,
-                        sessionDuration: historyManager.currentSession?.duration ?? 0,
-                        pointsSent: settingsManager.trackingStats.pointsSentToday,
-                        currentElevation: locationManager.currentLocation?.altitude,
                         accentColor: .purple
                     )
                     .padding(.horizontal, 4)
@@ -185,6 +176,13 @@ struct VisitedView: View {
                                 // Globe view
                                 VisitedControlButton(icon: "globe") {
                                     mapController.zoomToGlobe()
+                                }
+
+                                // Map style toggle (3D globe / flat map)
+                                VisitedControlButton(
+                                    icon: mapController.globeStyleMode == .globe ? "map" : "globe.americas.fill"
+                                ) {
+                                    mapController.toggleGlobeStyle()
                                 }
 
                                 // Zoom in

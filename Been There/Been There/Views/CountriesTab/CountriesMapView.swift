@@ -53,7 +53,6 @@ struct PremiumFlagMarker: View {
     let country: VisitedCountry
     let onTap: () -> Void
 
-    @State private var showGlow = true
     @State private var isPressed = false
 
     var body: some View {
@@ -62,21 +61,7 @@ struct PremiumFlagMarker: View {
             onTap()
         }) {
             ZStack {
-                // Outer glow (pulsing)
-                Circle()
-                    .fill(RadialGradient(
-                        colors: [
-                            Color.red.opacity(showGlow ? 0.5 : 0.15),
-                            Color.orange.opacity(showGlow ? 0.3 : 0.05),
-                            Color.clear
-                        ],
-                        center: .center,
-                        startRadius: 14,
-                        endRadius: 32
-                    ))
-                    .frame(width: 60, height: 60)
-
-                // Flag container
+                // Flag container (removed pulsing glow - was causing background crash)
                 ZStack {
                     // Glassmorphic background
                     Circle()
@@ -103,8 +88,7 @@ struct PremiumFlagMarker: View {
                     Text(country.flagEmoji)
                         .font(.system(size: 24))
                 }
-                .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
-                .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+                .shadow(color: Color.red.opacity(0.3), radius: 6, x: 0, y: 3)
             }
             .scaleEffect(isPressed ? 0.9 : 1.0)
         }
@@ -114,11 +98,6 @@ struct PremiumFlagMarker: View {
                 isPressed = pressing
             }
         }, perform: {})
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                showGlow.toggle()
-            }
-        }
     }
 }
 
@@ -198,6 +177,8 @@ struct CountriesMapView: View {
     let geoJSON: CountryGeoJSON?
     let onCountryTapped: (VisitedCountry) -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isMapActive = true
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
@@ -216,7 +197,9 @@ struct CountriesMapView: View {
 
     var body: some View {
         ZStack {
-            Map(position: $cameraPosition, interactionModes: .all) {
+            // Only render map when app is active to prevent watchdog timeout
+            if isMapActive {
+                Map(position: $cameraPosition, interactionModes: .all) {
                 // Render country polygons if GeoJSON is available
                 if let features = geoJSON?.features {
                     ForEach(features) { feature in
@@ -275,6 +258,10 @@ struct CountriesMapView: View {
                 }
             }
             .mapStyle(.imagery(elevation: .realistic))
+            } else {
+                // Placeholder while app is in background - prevents watchdog timeout
+                Color.black
+            }
 
             // Premium globe controls overlay
             VStack {
@@ -351,6 +338,20 @@ struct CountriesMapView: View {
                 CountryDetailView(country: country)
             }
             .presentationDetents([.medium, .large])
+        }
+        // Pause map rendering when app goes to background to prevent watchdog timeout
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                isMapActive = false
+            case .active:
+                // Small delay to ensure smooth transition back
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isMapActive = true
+                }
+            default:
+                break
+            }
         }
     }
 

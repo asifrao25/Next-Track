@@ -174,93 +174,98 @@ struct FullMapView: View {
         }
     }
 
+    // Control button size for consistency
+    private let controlButtonSize: CGFloat = 44
+
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                Map(position: $position) {
-                    // Older session paths (oldest, at the bottom)
-                    if showAllHistory {
-                        ForEach(olderSessions) { session in
-                            if session.locations.count > 1 {
-                                MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                                    .stroke(
-                                        colorFor(trackAppearance.olderColor, opacity: 0.5),
-                                        lineWidth: CGFloat(trackAppearance.olderWidth.rawValue)
-                                    )
-                            }
-                        }
-
-                        // Last week session paths
-                        ForEach(lastWeekSessions) { session in
-                            if session.locations.count > 1 {
-                                MapPolyline(coordinates: session.locations.map { $0.coordinate })
-                                    .stroke(
-                                        colorFor(trackAppearance.lastWeekColor, opacity: 0.7),
-                                        lineWidth: CGFloat(trackAppearance.lastWeekWidth.rawValue)
-                                    )
-                            }
-                        }
-                    }
-
-                    // Today's completed sessions
-                    ForEach(todaysSessions) { session in
+        ZStack(alignment: .bottom) {
+            // Full screen map
+            Map(position: $position) {
+                // Older session paths (oldest, at the bottom)
+                if showAllHistory {
+                    ForEach(olderSessions) { session in
                         if session.locations.count > 1 {
                             MapPolyline(coordinates: session.locations.map { $0.coordinate })
                                 .stroke(
-                                    colorFor(trackAppearance.todayColor),
-                                    lineWidth: CGFloat(trackAppearance.todayWidth.rawValue)
+                                    colorFor(trackAppearance.olderColor, opacity: 0.5),
+                                    lineWidth: CGFloat(trackAppearance.olderWidth.rawValue)
                                 )
                         }
                     }
 
-                    // Current location
-                    if let loc = locationManager.currentLocation {
-                        Annotation("Current Location", coordinate: loc.coordinate) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.3))
-                                    .frame(width: 50, height: 50)
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 20, height: 20)
-                                Circle()
-                                    .stroke(Color.white, lineWidth: 3)
-                                    .frame(width: 20, height: 20)
-                            }
+                    // Last week session paths
+                    ForEach(lastWeekSessions) { session in
+                        if session.locations.count > 1 {
+                            MapPolyline(coordinates: session.locations.map { $0.coordinate })
+                                .stroke(
+                                    colorFor(trackAppearance.lastWeekColor, opacity: 0.7),
+                                    lineWidth: CGFloat(trackAppearance.lastWeekWidth.rawValue)
+                                )
                         }
-
-                        // Accuracy circle
-                        MapCircle(center: loc.coordinate, radius: loc.horizontalAccuracy)
-                            .foregroundStyle(Color.blue.opacity(0.1))
-                            .stroke(Color.blue.opacity(0.4), lineWidth: 2)
                     }
+                }
 
-                    // Current session track path (today's track, on top)
-                    if sessionLocations.count > 1 {
-                        let coordinates = sessionLocations.map { $0.coordinate }
-                        MapPolyline(coordinates: coordinates)
+                // Today's completed sessions
+                ForEach(todaysSessions) { session in
+                    if session.locations.count > 1 {
+                        MapPolyline(coordinates: session.locations.map { $0.coordinate })
                             .stroke(
                                 colorFor(trackAppearance.todayColor),
                                 lineWidth: CGFloat(trackAppearance.todayWidth.rawValue)
                             )
+                    }
+                }
 
-                        // Start point marker
-                        if let first = sessionLocations.first {
-                            Annotation("Start", coordinate: first.coordinate) {
-                                Image(systemName: "flag.fill")
-                                    .foregroundColor(.green)
-                                    .font(.title2)
-                            }
+                // Current location
+                if let loc = locationManager.currentLocation {
+                    Annotation("Current Location", coordinate: loc.coordinate) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 50, height: 50)
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .stroke(Color.white, lineWidth: 3)
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+
+                    // Accuracy circle
+                    MapCircle(center: loc.coordinate, radius: loc.horizontalAccuracy)
+                        .foregroundStyle(Color.blue.opacity(0.1))
+                        .stroke(Color.blue.opacity(0.4), lineWidth: 2)
+                }
+
+                // Current session track path (today's track, on top)
+                if sessionLocations.count > 1 {
+                    let coordinates = sessionLocations.map { $0.coordinate }
+                    MapPolyline(coordinates: coordinates)
+                        .stroke(
+                            colorFor(trackAppearance.todayColor),
+                            lineWidth: CGFloat(trackAppearance.todayWidth.rawValue)
+                        )
+
+                    // Start point marker
+                    if let first = sessionLocations.first {
+                        Annotation("Start", coordinate: first.coordinate) {
+                            Image(systemName: "flag.fill")
+                                .foregroundColor(.green)
+                                .font(.title2)
                         }
                     }
                 }
-                .mapStyle(currentMapStyle)
-                .mapControls {
-                    MapCompass()
-                    MapScaleView()
-                    MapUserLocationButton()
-                }
+            }
+            .mapStyle(currentMapStyle)
+            .mapControls {
+                MapCompass()
+                MapScaleView()
+            }
+            .ignoresSafeArea()
 
+            // Bottom control bar
+            VStack(spacing: 12) {
                 // Map style picker
                 Picker("Map Style", selection: $mapStyle) {
                     ForEach(MapStyleOption.allCases, id: \.self) { style in
@@ -268,42 +273,82 @@ struct FullMapView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding()
-                .background(.ultraThinMaterial)
-            }
-            .navigationTitle("Track Map")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
+
+                // Control buttons row
+                HStack {
+                    // Close button (left)
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: controlButtonSize, height: controlButtonSize)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary.opacity(0.2), lineWidth: 1)
+                            )
                     }
-                }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
-                        // History toggle button
-                        Button {
-                            withAnimation {
-                                showAllHistory.toggle()
-                            }
-                        } label: {
-                            Image(systemName: showAllHistory ? "clock.fill" : "clock")
-                                .foregroundColor(showAllHistory ? .blue : .primary)
-                        }
+                    Spacer()
 
-                        // Center on location button
-                        Button {
-                            centerOnCurrentLocation()
-                        } label: {
-                            Image(systemName: "location.fill")
+                    // History toggle (right side)
+                    Button {
+                        withAnimation {
+                            showAllHistory.toggle()
                         }
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Image(systemName: showAllHistory ? "clock.fill" : "clock")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(showAllHistory ? .blue : .primary)
+                            .frame(width: controlButtonSize, height: controlButtonSize)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(showAllHistory ? Color.blue.opacity(0.5) : Color.primary.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+
+                    // My location button (right side)
+                    Button {
+                        centerOnCurrentLocation()
+                        HapticManager.shared.buttonTap()
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: controlButtonSize, height: controlButtonSize)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                            )
                     }
                 }
             }
-            .onAppear {
-                centerOnCurrentLocation()
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: -2)
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        }
+        .onAppear {
+            centerOnCurrentLocation()
         }
     }
 

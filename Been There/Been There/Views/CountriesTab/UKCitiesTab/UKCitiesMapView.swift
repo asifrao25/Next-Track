@@ -13,6 +13,8 @@ struct UKCitiesMapView: View {
     let visitedCities: [VisitedUKCity]
     let onCityTapped: (VisitedUKCity) -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isMapActive = true
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: UKCityData.ukCenter,
@@ -89,8 +91,10 @@ struct UKCitiesMapView: View {
 
     var body: some View {
         ZStack {
-            MapReader { proxy in
-                Map(position: $cameraPosition, interactionModes: .all) {
+            // Only render map when app is active to prevent watchdog timeout
+            if isMapActive {
+                MapReader { proxy in
+                    Map(position: $cameraPosition, interactionModes: .all) {
                 // Render LAD boundary polygons for visited cities
                 if let features = citiesManager.ladGeoJSON?.features {
                     ForEach(features) { feature in
@@ -158,6 +162,10 @@ struct UKCitiesMapView: View {
                             }
                         }
                 )
+            }
+            } else {
+                // Placeholder while app is in background - prevents watchdog timeout
+                Color(white: 0.1)
             }
 
             // Controls overlay
@@ -227,6 +235,20 @@ struct UKCitiesMapView: View {
                 citiesManager: citiesManager
             )
             .presentationDetents([.medium])
+        }
+        // Pause map rendering when app goes to background to prevent watchdog timeout
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                isMapActive = false
+            case .active:
+                // Small delay to ensure smooth transition back
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isMapActive = true
+                }
+            default:
+                break
+            }
         }
     }
 

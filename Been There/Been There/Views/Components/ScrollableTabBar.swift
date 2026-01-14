@@ -80,16 +80,39 @@ struct ScrollableTabBar: View {
 
     // MARK: - Pill Background
 
+    // Sky blue tint to match header
+    private let skyBlue = Color(red: 0.4, green: 0.6, blue: 0.85)
+
     private var pillBackground: some View {
         ZStack {
+            // Base with sky blue tint
             Capsule()
-                .fill(colorScheme == .dark ? Color(white: 0.06) : Color(white: 0.93))
+                .fill(
+                    colorScheme == .dark
+                        ? Color(red: 0.05, green: 0.08, blue: 0.15)  // Dark blue-tinted base
+                        : Color(red: 0.85, green: 0.9, blue: 0.95)   // Light sky blue base
+                )
 
+            // Sky blue gradient overlay
             Capsule()
                 .fill(
                     LinearGradient(
                         colors: [
-                            tabs[selectedTab].color.opacity(colorScheme == .dark ? 0.15 : 0.1),
+                            skyBlue.opacity(colorScheme == .dark ? 0.2 : 0.15),
+                            skyBlue.opacity(colorScheme == .dark ? 0.1 : 0.05),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            // Selected tab color accent (subtle)
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            tabs[selectedTab].color.opacity(colorScheme == .dark ? 0.1 : 0.08),
                             .clear
                         ],
                         startPoint: .top,
@@ -98,7 +121,7 @@ struct ScrollableTabBar: View {
                 )
 
             Capsule()
-                .fill(.ultraThinMaterial)
+                .fill(.ultraThinMaterial.opacity(0.5))
 
             Capsule()
                 .stroke(
@@ -113,8 +136,8 @@ struct ScrollableTabBar: View {
                     lineWidth: 1.5
                 )
         }
-        .shadow(color: tabs[selectedTab].color.opacity(0.35), radius: 12, x: 0, y: 5)
-        .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+        .shadow(color: skyBlue.opacity(0.3), radius: 12, x: 0, y: 5)
+        .shadow(color: tabs[selectedTab].color.opacity(0.2), radius: 8, x: 0, y: 3)
         .animation(.easeInOut(duration: 0.25), value: selectedTab)
     }
 
@@ -237,7 +260,7 @@ struct TabPicker: UIViewRepresentable {
 
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
-        imageView.tintColor = isSelected ? UIColor(tab.color) : .gray
+        imageView.tintColor = isSelected ? UIColor(tab.color) : UIColor(tab.color.opacity(0.4))
         imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
             pointSize: isSelected ? 26 : 27,  // Inactive icons 50% larger (18 -> 27)
             weight: isSelected ? .bold : .medium
@@ -248,7 +271,7 @@ struct TabPicker: UIViewRepresentable {
         let label = UILabel()
         label.text = tab.title
         label.font = .systemFont(ofSize: isSelected ? 11 : 10, weight: isSelected ? .bold : .medium)
-        label.textColor = isSelected ? UIColor(tab.color) : .gray
+        label.textColor = isSelected ? UIColor(tab.color) : UIColor(tab.color.opacity(0.4))
         label.tag = 101
 
         stackView.addArrangedSubview(imageView)
@@ -280,7 +303,7 @@ struct TabPicker: UIViewRepresentable {
             view.alpha = isSelected ? 1.0 : 0.7  // More visible when inactive
 
             if let imageView = view.viewWithTag(100) as? UIImageView {
-                imageView.tintColor = isSelected ? UIColor(tab.color) : .gray
+                imageView.tintColor = isSelected ? UIColor(tab.color) : UIColor(tab.color.opacity(0.4))
                 imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
                     pointSize: isSelected ? 26 : 27,  // Inactive icons 50% larger (18 -> 27)
                     weight: isSelected ? .bold : .medium
@@ -289,7 +312,7 @@ struct TabPicker: UIViewRepresentable {
             }
 
             if let label = view.viewWithTag(101) as? UILabel {
-                label.textColor = isSelected ? UIColor(tab.color) : .gray
+                label.textColor = isSelected ? UIColor(tab.color) : UIColor(tab.color.opacity(0.4))
                 label.font = .systemFont(ofSize: isSelected ? 11 : 10, weight: isSelected ? .bold : .medium)
             }
         }

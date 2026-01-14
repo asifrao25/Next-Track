@@ -36,18 +36,9 @@ struct InsightsView: View {
                 VStack(spacing: 0) {
                     // Header at top
                     CustomTitleHeaderView(
-                        connectionMonitor: connectionMonitor,
-                        batteryMonitor: batteryMonitor,
                         isTracking: locationManager.isTracking,
                         hasIssues: false,
-                        pendingCount: PendingLocationQueue.shared.count,
                         currentZoneName: geofenceManager.currentZone?.name,
-                        connectionStatus: .connected,
-                        lastSuccessfulSend: settingsManager.trackingStats.lastSuccessfulSend,
-                        todayMiles: historyManager.todaysDistance / 1609.344,
-                        sessionDuration: historyManager.currentSession?.duration ?? 0,
-                        pointsSent: settingsManager.trackingStats.pointsSentToday,
-                        currentElevation: locationManager.currentLocation?.altitude,
                         accentColor: .pink
                     )
                     .padding(.horizontal, 4)

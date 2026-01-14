@@ -10,6 +10,13 @@ import MapKit
 import CoreLocation
 import Combine
 
+// MARK: - Globe Style Mode
+
+enum GlobeStyleMode: String, CaseIterable {
+    case globe = "Globe"        // .hybrid - 3D satellite globe with continent/country names
+    case flat = "Flat"          // .standard - flat map view, zoomed out to show world
+}
+
 @MainActor
 class VisitedMapController: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
@@ -38,13 +45,61 @@ class VisitedMapController: ObservableObject {
     @Published var currentDistance: Double = 10_000_000
     private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 30, longitude: 0)
 
-    // Dynamic map style based on zoom level
+    // User-controlled globe style mode
+    @Published var globeStyleMode: GlobeStyleMode = .globe
+
+    // Map style based on user selection
     var currentMapStyle: MapStyle {
-        if currentDistance < 3_000_000 {
-            return .standard(elevation: .realistic, pointsOfInterest: .including([.airport, .nationalPark, .park]))
-        } else {
-            return .imagery(elevation: .realistic)
+        switch globeStyleMode {
+        case .globe:
+            // 3D satellite globe with continent/country names
+            return .hybrid(elevation: .realistic, pointsOfInterest: .excludingAll)
+        case .flat:
+            // Flat standard map - clean aesthetic
+            return .standard(elevation: .flat, pointsOfInterest: .excludingAll)
         }
+    }
+
+    /// Toggle between globe and flat map styles
+    func toggleGlobeStyle() {
+        HapticManager.shared.buttonTap()
+
+        if globeStyleMode == .globe {
+            // Switching to flat - zoom out to show world
+            globeStyleMode = .flat
+            zoomToFlatWorld()
+        } else {
+            // Switching to globe
+            globeStyleMode = .globe
+            zoomToGlobe()
+        }
+    }
+
+    /// Zoom out to show flat world map centered on user's location
+    private func zoomToFlatWorld() {
+        // Use user's current location as center, or default to equator
+        let center: CLLocationCoordinate2D
+        if let userLocation = LocationManager.shared.currentLocation {
+            center = userLocation.coordinate
+        } else {
+            center = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        }
+
+        self.currentCenter = center
+        // Use maximum possible distance for flat map - shows most of the world
+        let flatMapDistance: Double = 50_000_000  // 50M meters - maximum zoom out
+
+        withAnimation(.easeOut(duration: 1.0)) {
+            self.cameraPosition = .camera(
+                MapCamera(
+                    centerCoordinate: center,
+                    distance: flatMapDistance,
+                    heading: 0,
+                    pitch: 0
+                )
+            )
+        }
+        self.currentDistance = flatMapDistance
     }
 
     // MARK: - Intro Animation
