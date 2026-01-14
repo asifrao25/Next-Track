@@ -162,6 +162,9 @@ struct NextTrackApp: App {
             let elapsed = Date().timeIntervalSince(backgroundTime)
             let delaySeconds = Double(settings.lockDelay.rawValue)
 
+            // Clear the background time so we don't re-check on subsequent active events
+            lockBackgroundTime = nil
+
             if elapsed > delaySeconds {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isUnlocked = false
