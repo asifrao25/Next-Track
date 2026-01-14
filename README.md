@@ -1,4 +1,4 @@
-# Next-Track
+# Been There
 
 A comprehensive iOS location tracking app built with SwiftUI that helps you track your journeys, discover new places, and visualize your travel history.
 
@@ -79,7 +79,7 @@ The UK map uses Local Authority District boundaries from ONS (Office for Nationa
 ## Installation
 
 1. Clone the repository
-2. Open `Next-track.xcodeproj` in Xcode
+2. Open `Been There.xcodeproj` in Xcode
 3. Build and run on your device (simulator has limited location features)
 
 ## Privacy
