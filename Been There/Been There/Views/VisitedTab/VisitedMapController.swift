@@ -32,18 +32,18 @@ class VisitedMapController: ObservableObject {
     // Track if intro animation is complete
     private var introAnimationComplete = false
 
-    // Start zoomed in (will animate out on appear)
+    // Start fully zoomed out (globe view)
     @Published var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
-            centerCoordinate: CLLocationCoordinate2D(latitude: 30, longitude: 0),
-            distance: 10_000_000,  // Start zoomed in
+            centerCoordinate: CLLocationCoordinate2D(latitude: 20, longitude: 0),
+            distance: 40_000_000,  // Full globe view
             heading: 0,
             pitch: 0
         )
     )
 
-    @Published var currentDistance: Double = 10_000_000
-    private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 30, longitude: 0)
+    @Published var currentDistance: Double = 40_000_000
+    private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 20, longitude: 0)
 
     // User-controlled globe style mode
     @Published var globeStyleMode: GlobeStyleMode = .globe
@@ -62,6 +62,7 @@ class VisitedMapController: ObservableObject {
 
     /// Toggle between globe and flat map styles
     func toggleGlobeStyle() {
+        stopSpinAnimation()
         HapticManager.shared.buttonTap()
 
         if globeStyleMode == .globe {
@@ -86,8 +87,8 @@ class VisitedMapController: ObservableObject {
         }
 
         self.currentCenter = center
-        // Use maximum possible distance for flat map - shows most of the world
-        let flatMapDistance: Double = 50_000_000  // 50M meters - maximum zoom out
+        // Zoom out to show full vertical extent (pole to pole) while allowing horizontal scroll
+        let flatMapDistance: Double = 120_000_000  // 120M meters - full vertical view
 
         withAnimation(.easeOut(duration: 1.0)) {
             self.cameraPosition = .camera(
@@ -106,49 +107,108 @@ class VisitedMapController: ObservableObject {
 
     private var introTask: Task<Void, Never>?
 
-    /// Called when view appears - zooms out from zoomed-in state to full globe
+    // MARK: - Spin Animation
+
+    private var spinTask: Task<Void, Never>?
+    @Published var isSpinning = false
+    private var currentHeading: Double = 0
+    private var spinStartTime: Date?  // Grace period before detecting user interaction
+
+    /// Called when view appears - starts spinning the already zoomed-out globe
     func playIntroAnimation() {
-        print("🌍 Playing intro zoom-out animation")
-        introAnimationComplete = false
+        print("🌍 Starting globe intro")
 
+        // Small delay to let the view settle, then start spinning
         introTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
+            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
 
-            // Check if cancelled (user tapped a button)
-            guard !Task.isCancelled else {
-                print("🛑 Intro animation cancelled")
-                return
-            }
-
-            print("🎬 Starting animation NOW")
-
-            // Use camera with max distance MapKit allows (~40M)
-            let globeCenter = CLLocationCoordinate2D(latitude: 20, longitude: 0)
-            withAnimation(.easeOut(duration: 2.0)) {
-                self.cameraPosition = .camera(
-                    MapCamera(
-                        centerCoordinate: globeCenter,
-                        distance: 40_000_000,
-                        heading: 0,
-                        pitch: 0
-                    )
-                )
-            }
-            self.currentDistance = 40_000_000
-            self.currentCenter = globeCenter
-
-            // Mark intro as complete after animation
-            try? await Task.sleep(nanoseconds: 2_000_000_000)  // 2 seconds
-            self.introAnimationComplete = true
-            print("✅ Intro animation complete")
+            guard !Task.isCancelled && !isSpinning else { return }
+            print("🎬 Starting spin animation")
+            introAnimationComplete = true
+            startSpinAnimation()
         }
     }
 
-    /// Cancel any ongoing intro animation
+    /// Cancel intro animation
     private func cancelIntroAnimation() {
         introTask?.cancel()
         introTask = nil
         introAnimationComplete = true
+    }
+
+    /// Start continuous spin animation (8 seconds per full rotation, 60 FPS smooth)
+    private func startSpinAnimation() {
+        guard !isSpinning else { return }
+
+        print("🔄 Starting globe spin animation")
+        isSpinning = true
+        currentHeading = 0
+        spinStartTime = Date()  // Set start time for grace period
+
+        // Store the current state to use during spin
+        let spinDistance = currentDistance
+
+        spinTask = Task { @MainActor in
+            let spinDuration: Double = 8.0  // 8 seconds for full 360° rotation
+            let frameRate: Double = 60.0  // 60 FPS for smooth animation
+            let stepInterval: UInt64 = 16_666_666  // ~16.67ms per step (60 FPS)
+            let degreesPerStep = 360.0 / (spinDuration * frameRate)  // 0.75° per step
+
+            print("🔄 Spin loop starting - distance: \(spinDistance), \(degreesPerStep)°/frame")
+
+            var currentLongitude: Double = 0
+            var frameCount = 0
+
+            while !Task.isCancelled && isSpinning {
+                // Rotate globe by changing longitude (not heading)
+                currentLongitude += degreesPerStep
+                if currentLongitude >= 180 { currentLongitude -= 360 }
+
+                let spinCoordinate = CLLocationCoordinate2D(
+                    latitude: 20,  // Keep latitude fixed
+                    longitude: currentLongitude
+                )
+
+                self.cameraPosition = .camera(
+                    MapCamera(
+                        centerCoordinate: spinCoordinate,
+                        distance: spinDistance,
+                        heading: 0,
+                        pitch: 0
+                    )
+                )
+
+                frameCount += 1
+                if frameCount % 60 == 0 {  // Log every 60 frames (~1 second)
+                    print("🔄 Spinning... longitude: \(Int(currentLongitude))°")
+                }
+
+                try? await Task.sleep(nanoseconds: stepInterval)
+            }
+            print("🛑 Globe spin stopped after \(frameCount) frames")
+        }
+    }
+
+    /// Stop spin animation
+    func stopSpinAnimation() {
+        guard isSpinning else { return }
+        print("⏹️ Stopping globe spin")
+        isSpinning = false
+        spinTask?.cancel()
+        spinTask = nil
+    }
+
+    /// Handle scene phase changes - stop spinning when app goes to background
+    func handleScenePhaseChange(_ phase: ScenePhase) {
+        switch phase {
+        case .background, .inactive:
+            stopSpinAnimation()
+        case .active:
+            // Don't auto-resume - user already interacted by switching apps
+            break
+        @unknown default:
+            break
+        }
     }
 
     // MARK: - Zoom Functions
@@ -157,8 +217,9 @@ class VisitedMapController: ObservableObject {
     func zoomToCurrentLocation() {
         print("🗺️ zoomToCurrentLocation called")
 
-        // Cancel any ongoing intro animation
+        // Cancel any ongoing animations
         cancelIntroAnimation()
+        stopSpinAnimation()
 
         // Use existing location if available
         if let location = LocationManager.shared.currentLocation {
@@ -210,8 +271,9 @@ class VisitedMapController: ObservableObject {
     func zoomToGlobe() {
         print("🌍 Zooming to globe view from distance: \(currentDistance)")
 
-        // Cancel any ongoing intro animation
+        // Cancel any ongoing animations
         cancelIntroAnimation()
+        stopSpinAnimation()
 
         HapticManager.shared.buttonTap()
 
@@ -241,6 +303,8 @@ class VisitedMapController: ObservableObject {
 
     /// Zoom in by factor of 2
     func zoomIn() {
+        stopSpinAnimation()
+
         let newDistance = max(currentDistance / zoomFactor, minZoomDistance)
         let center = currentCenter
         print("➕ Zooming in: \(currentDistance) → \(newDistance)")
@@ -262,6 +326,8 @@ class VisitedMapController: ObservableObject {
 
     /// Zoom out by factor of 2
     func zoomOut() {
+        stopSpinAnimation()
+
         let newDistance = min(currentDistance * zoomFactor, maxZoomDistance)
         let center = currentCenter
         print("➖ Zooming out: \(currentDistance) → \(newDistance)")
@@ -288,7 +354,29 @@ class VisitedMapController: ObservableObject {
 
     /// Update camera state from map changes
     func updateFromCamera(_ camera: MapCamera) {
-        // Log what MapKit actually sets the distance to (might be capped)
+        // If spinning, detect user interaction via zoom (pinch) or latitude change
+        // Longitude changes are from our spin animation, so ignore those
+        if isSpinning {
+            // Short grace period to let camera settle after spin starts
+            if let startTime = spinStartTime, Date().timeIntervalSince(startTime) > 0.3 {
+                // Detect zoom changes (pinch) - even small pinch should stop
+                let zoomChanged = abs(camera.distance - currentDistance) > 500_000  // 500km threshold
+                // Detect latitude changes (drag up/down) - we keep lat at 20
+                let latitudeChanged = abs(camera.centerCoordinate.latitude - 20) > 2  // 2° threshold
+
+                if zoomChanged || latitudeChanged {
+                    print("👆 User interaction detected - zoom: \(zoomChanged), lat: \(latitudeChanged)")
+                    stopSpinAnimation()
+                    // Update tracking with new values
+                    currentDistance = camera.distance
+                    currentCenter = camera.centerCoordinate
+                    return
+                }
+            }
+            return  // Don't update tracking while spinning
+        }
+
+        // Only update tracking when not spinning
         if abs(camera.distance - currentDistance) > 1000 {
             print("📷 Camera distance changed: \(currentDistance) → \(camera.distance)")
         }

@@ -41,6 +41,10 @@ struct VisitedMapView: View {
     @State private var timerTouchLocation: CGPoint = .zero
     @State private var progressTimer: Timer?
 
+    // Smart long-press filtering - cancel if finger moves too much
+    @State private var initialTouchLocation: CGPoint = .zero
+    private let touchMovementThreshold: CGFloat = 15  // Max pixels before cancel
+
     // Zoom thresholds
     private let cityMarkerZoomThreshold: Double = 5_000_000
 
@@ -98,19 +102,24 @@ struct VisitedMapView: View {
                     mapController.updateFromCamera(context.camera)
                 }
                 // Long press detection using timer - fires while finger is still down
+                // Smart filtering: cancels if finger moves too much (user is panning)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            // Stop spin animation on any touch
+                            if mapController.isSpinning {
+                                mapController.stopSpinAnimation()
+                            }
+
                             // Mark finger as down
                             isFingerDown = true
 
                             // Only start timer on initial touch
                             if pressStartTime == nil && !hasFiredLongPress {
+                                // Store initial location for movement tracking
+                                initialTouchLocation = value.location
+                                timerTouchLocation = value.location
                                 pressStartTime = Date()
-
-                                // Store touch location for coordinate conversion and overlay
-                                let touchLocation = value.location
-                                timerTouchLocation = touchLocation
 
                                 // Timer overlay starts hidden, appears after 1 second delay
                                 timerProgress = 0.0
@@ -140,6 +149,19 @@ struct VisitedMapView: View {
                                             return
                                         }
 
+                                        // Check movement - cancel if finger moved too much (user panning)
+                                        let dx = timerTouchLocation.x - initialTouchLocation.x
+                                        let dy = timerTouchLocation.y - initialTouchLocation.y
+                                        let moveDistance = sqrt(dx*dx + dy*dy)
+                                        if moveDistance > touchMovementThreshold {
+                                            timer.invalidate()
+                                            progressTimer = nil
+                                            showTimerOverlay = false
+                                            timerProgress = 0.0
+                                            pressStartTime = nil
+                                            return
+                                        }
+
                                         let elapsed = Date().timeIntervalSince(startTime)
 
                                         // Show timer ring after 1 second delay
@@ -164,11 +186,28 @@ struct VisitedMapView: View {
                                             timerProgress = 0.0
 
                                             // Convert touch location to map coordinate
-                                            if let coordinate = proxy.convert(touchLocation, from: .local) {
+                                            if let coordinate = proxy.convert(initialTouchLocation, from: .local) {
                                                 handleLongPress(at: coordinate)
                                             }
                                         }
                                     }
+                                }
+                            } else if pressStartTime != nil && !hasFiredLongPress {
+                                // Subsequent touch updates - check movement
+                                let dx = value.location.x - initialTouchLocation.x
+                                let dy = value.location.y - initialTouchLocation.y
+                                let moveDistance = sqrt(dx*dx + dy*dy)
+
+                                if moveDistance > touchMovementThreshold {
+                                    // User is panning - cancel long press
+                                    progressTimer?.invalidate()
+                                    progressTimer = nil
+                                    pressStartTime = nil
+                                    showTimerOverlay = false
+                                    timerProgress = 0.0
+                                } else {
+                                    // Update current location for overlay positioning
+                                    timerTouchLocation = value.location
                                 }
                             }
                         }
@@ -238,6 +277,9 @@ struct VisitedMapView: View {
         }
         // Pause map rendering when app goes to background to prevent watchdog timeout
         .onChange(of: scenePhase) { _, newPhase in
+            // Stop spin animation when app goes to background (saves CPU/energy)
+            mapController.handleScenePhaseChange(newPhase)
+
             switch newPhase {
             case .background:
                 isMapActive = false

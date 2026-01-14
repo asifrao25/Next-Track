@@ -36,87 +36,61 @@ struct VisitedView: View {
                     VisitedMapView(mapController: mapController)
                         .ignoresSafeArea(edges: .bottom)
                 } else {
-                    // List view - add top padding to account for header overlay
+                    // List view - add top padding to account for stats bar overlay
                     CountriesListView(
                         countries: countriesManager.visitedCountries,
                         selectedSort: $selectedSort
                     )
-                    .padding(.top, 120) // Space for header + stats bar
+                    .padding(.top, 70) // Space for stats bar
                 }
 
-                // Header overlay at top
-                VStack(spacing: 8) {
-                    CustomTitleHeaderView(
-                        isTracking: locationManager.isTracking,
-                        hasIssues: false,
-                        currentZoneName: geofenceManager.currentZone?.name,
-                        accentColor: .purple
-                    )
-                    .padding(.horizontal, 4)
-
-                    // Stats bar - Countries and Cities count
-                    HStack(spacing: 20) {
+                // Stats bar at top - Countries and Cities count
+                VStack {
+                    HStack(spacing: 28) {
                         // Countries stat
                         HStack(spacing: 6) {
                             Image(systemName: "flag.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(
-                                    LinearGradient(colors: [.teal, .purple], startPoint: .leading, endPoint: .trailing)
-                                )
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.primary)
                             Text("Countries:")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.primary.opacity(0.6))
                             Text("\(countriesManager.visitedCountries.count)/195")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(
-                                    LinearGradient(colors: [.teal, .purple], startPoint: .leading, endPoint: .trailing)
-                                )
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.primary)
                         }
 
                         // Divider
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.3))
-                            .frame(width: 1, height: 16)
+                        Capsule()
+                            .fill(Color.primary.opacity(0.2))
+                            .frame(width: 2, height: 18)
 
                         // Cities stat
                         HStack(spacing: 6) {
                             Image(systemName: "building.2.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(
-                                    LinearGradient(colors: [.purple, .teal], startPoint: .leading, endPoint: .trailing)
-                                )
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.primary)
                             Text("Cities:")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.primary.opacity(0.6))
                             Text("\(cityTracker.visitedCities.count)")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(
-                                    LinearGradient(colors: [.purple, .teal], startPoint: .leading, endPoint: .trailing)
-                                )
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
                     .background(
                         Capsule()
                             .fill(.ultraThinMaterial)
-                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                     )
                     .overlay(
                         Capsule()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.3),
-                                        Color.teal.opacity(0.2),
-                                        Color.white.opacity(0.1)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.5
-                            )
+                            .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                     )
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
 
                     Spacer()
                 }
@@ -146,28 +120,17 @@ struct VisitedView: View {
                             .background(
                                 Capsule()
                                     .fill(.ultraThinMaterial)
-                                    .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
                             )
                             .overlay(
                                 Capsule()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.3),
-                                                Color.teal.opacity(0.2),
-                                                Color.white.opacity(0.1)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                             )
+                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
 
                             Spacer()
 
                             // Right controls - Zoom controls
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 // Current location
                                 VisitedControlButton(icon: "location.fill") {
                                     mapController.zoomToCurrentLocation()
@@ -199,23 +162,12 @@ struct VisitedView: View {
                             .background(
                                 Capsule()
                                     .fill(.ultraThinMaterial)
-                                    .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
                             )
                             .overlay(
                                 Capsule()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.3),
-                                                Color.teal.opacity(0.2),
-                                                Color.white.opacity(0.1)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                             )
+                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 90) // Flush with tab bar
@@ -242,23 +194,12 @@ struct VisitedView: View {
                             .background(
                                 Capsule()
                                     .fill(.ultraThinMaterial)
-                                    .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
                             )
                             .overlay(
                                 Capsule()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.3),
-                                                Color.teal.opacity(0.2),
-                                                Color.white.opacity(0.1)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                             )
+                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
 
                             Spacer()
                         }
@@ -305,55 +246,32 @@ struct VisitedControlButton: View {
             action()
         }) {
             ZStack {
-                // Background
+                // Background with subtle fill
                 Circle()
                     .fill(.ultraThinMaterial)
                     .frame(width: 44, height: 44)
 
-                // Gradient overlay when pressed
+                // Pressed state overlay
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.teal, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ).opacity(isPressed ? 0.3 : 0)
-                    )
+                    .fill(Color.teal.opacity(isPressed ? 0.2 : 0))
                     .frame(width: 44, height: 44)
 
                 // Border
                 Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.4),
-                                Color.teal.opacity(0.3),
-                                Color.white.opacity(0.1)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
                     .frame(width: 44, height: 44)
 
-                // Icon
+                // Icon - solid color for legibility
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.primary)
             }
-            .shadow(color: Color.teal.opacity(isPressed ? 0.4 : 0.2), radius: isPressed ? 4 : 8)
+            .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
             .scaleEffect(isPressed ? 0.92 : 1.0)
         }
         .buttonStyle(.plain)
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
-            withAnimation(.easeInOut(duration: 0.1)) {
+            withAnimation(.easeInOut(duration: 0.15)) {
                 isPressed = pressing
             }
         }, perform: {})
