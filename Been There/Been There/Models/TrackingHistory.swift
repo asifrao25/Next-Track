@@ -254,6 +254,28 @@ class TrackingHistoryManager: ObservableObject {
         locationsSinceLastSave = 0
     }
 
+    // MARK: - Background Lifecycle (Prevents Watchdog Crashes)
+
+    /// Suspend auto-save timer when app goes to background
+    /// Saves current data first to prevent data loss
+    func suspendAutoSave() {
+        guard autoSaveTimer != nil else { return }
+        print("[TrackingHistory] Suspending auto-save for background")
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+        saveCurrentSessionToDisk()  // Save before suspending
+    }
+
+    /// Resume auto-save timer when app returns to foreground
+    func resumeAutoSave() {
+        // Only resume if there's an active session
+        guard currentSession != nil, autoSaveTimer == nil else { return }
+        print("[TrackingHistory] Resuming auto-save from background")
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.saveCurrentSessionToDisk()
+        }
+    }
+
     /// Save current session to disk (called periodically and on app background)
     func saveCurrentSessionToDisk() {
         guard let session = currentSession else {
@@ -398,9 +420,11 @@ class TrackingHistoryManager: ObservableObject {
         session.pointsCount += 1
         currentSession = session
 
-        // Save every 10 locations for extra protection
+        // Save every 5 locations when auto-save timer is suspended (background mode)
+        // Otherwise save every 10 locations
         locationsSinceLastSave += 1
-        if locationsSinceLastSave >= 10 {
+        let saveThreshold = (autoSaveTimer == nil) ? 5 : 10
+        if locationsSinceLastSave >= saveThreshold {
             saveCurrentSessionToDisk()
             locationsSinceLastSave = 0
         }

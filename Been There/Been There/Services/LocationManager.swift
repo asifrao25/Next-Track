@@ -36,6 +36,15 @@ class LocationManager: NSObject, ObservableObject {
     // Timer for interval-based updates
     private var updateTimer: Timer?
 
+    // Background lifecycle management
+    private var timerSuspended = false
+
+    /// Whether the app is currently in background mode
+    private var isInBackground: Bool = false
+
+    /// Last time a location was recorded to history in background
+    private var lastBackgroundRecordTime: Date?
+
     private let maxRecentLocations = 100 // Keep last 100 points for map display
 
     // MARK: - Smart Movement Tracking Properties
@@ -127,6 +136,10 @@ class LocationManager: NSObject, ObservableObject {
         isTracking = true
         lastError = nil
 
+        // Reset background state
+        lastBackgroundRecordTime = nil
+        isInBackground = false
+
         // Start interval timer
         startUpdateTimer()
 
@@ -141,6 +154,11 @@ class LocationManager: NSObject, ObservableObject {
         locationManager.stopUpdatingLocation()
         stopUpdateTimer()
         isTracking = false
+
+        // Reset background state
+        lastBackgroundRecordTime = nil
+        isInBackground = false
+
         print("[LocationManager] Stopped tracking")
         return true
     }
@@ -401,10 +419,81 @@ class LocationManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Background Lifecycle (Prevents Watchdog Crashes)
+
+    /// Suspend update timer when app goes to background
+    /// This prevents watchdog timeout (0x8BADF00D) crashes
+    func suspendTimers() {
+        guard !timerSuspended else { return }
+        print("[LocationManager] Suspending timer for background")
+        updateTimer?.invalidate()
+        updateTimer = nil
+        timerSuspended = true
+        isInBackground = true
+    }
+
+    /// Resume update timer when app returns to foreground
+    func resumeTimers() {
+        guard timerSuspended else { return }
+        print("[LocationManager] Resuming timer from background")
+        timerSuspended = false
+        isInBackground = false
+        lastBackgroundRecordTime = nil  // Reset background state
+        if isTracking {
+            scheduleNextUpdate()
+        }
+    }
+
     func getDistanceFromLastSent() -> Double? {
         guard let current = currentLocation,
               let last = lastSentLocation else { return nil }
         return current.distance(from: last)
+    }
+
+    // MARK: - Background Location Recording
+
+    /// Record location to history when in background mode
+    /// Implements time-based throttling to respect user's interval settings
+    private func recordBackgroundLocationIfNeeded(_ location: CLLocation) {
+        // Check accuracy threshold
+        guard location.horizontalAccuracy <= minimumAccuracy else {
+            print("[LocationManager] Background: Skipping - accuracy too low: \(location.horizontalAccuracy)m")
+            return
+        }
+
+        // Calculate effective interval for background (10s min, 60s max)
+        // This ensures reasonable path detail while respecting battery
+        var backgroundInterval = min(max(updateInterval, 10), 60)
+
+        // Apply reduced smart tracking multiplier in background (max 4x)
+        if smartTrackingEnabled && isInStationaryMode {
+            let cappedMultiplier = min(currentFrequencyMultiplier, 4.0)
+            backgroundInterval = backgroundInterval * cappedMultiplier
+        }
+
+        // Time-based throttling
+        if let lastTime = lastBackgroundRecordTime {
+            let elapsed = Date().timeIntervalSince(lastTime)
+            if elapsed < backgroundInterval * 0.9 {
+                return  // Not enough time passed
+            }
+        }
+
+        // Distance-based filtering (prevent GPS jitter noise)
+        if let lastSent = lastSentLocation {
+            let distance = location.distance(from: lastSent)
+            if distance < 5.0 {
+                print("[LocationManager] Background: Skipping - minimal movement: \(String(format: "%.1f", distance))m")
+                return
+            }
+        }
+
+        // Record this location
+        print("[LocationManager] Background: Recording location")
+        onLocationUpdate?(location)
+        lastSentLocation = location
+        lastSentTime = Date()
+        lastBackgroundRecordTime = Date()
     }
 }
 
@@ -444,6 +533,11 @@ extension LocationManager: CLLocationManagerDelegate {
         }
 
         print("[LocationManager] Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) | Accuracy: \(location.horizontalAccuracy)m")
+
+        // BACKGROUND RECORDING: When in background mode, record directly
+        if isInBackground && isTracking {
+            recordBackgroundLocationIfNeeded(location)
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
