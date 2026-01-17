@@ -63,37 +63,41 @@ struct VisitedMapView: View {
                 // Main globe map with MapReader for coordinate conversion
                 MapReader { proxy in
                     Map(position: $mapController.cameraPosition, interactionModes: .all) {
-                    // Country flag pins for visited countries
-                    ForEach(countriesManager.visitedCountries) { country in
-                        if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
-                            Annotation("", coordinate: center) {
-                                CountryFlagPinView(flag: country.flagEmoji)
-                                    .onTapGesture {
-                                        HapticManager.shared.selectionChanged()
-                                        selectedCountry = country
-                                    }
+                    // BACKGROUND SAFETY: Skip overlay rendering when in background
+                    // This prevents MapKit overlay updates from causing watchdog timeout (0x8BADF00D)
+                    if !mapController.shouldDeferOverlayOperations {
+                        // Country flag pins for visited countries
+                        ForEach(countriesManager.visitedCountries) { country in
+                            if let center = CountriesManager.shared.getCountryCenter(isoCode: country.isoCode) {
+                                Annotation("", coordinate: center) {
+                                    CountryFlagPinView(flag: country.flagEmoji)
+                                        .onTapGesture {
+                                            HapticManager.shared.selectionChanged()
+                                            selectedCountry = country
+                                        }
+                                }
                             }
                         }
-                    }
 
-                    // City pin markers (visible when zoomed in)
-                    if shouldShowCityMarkers {
-                        ForEach(cityTracker.visitedCities) { city in
-                            Annotation("", coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)) {
-                                PinMarkerView(cityName: city.name, showLabel: false)
-                                    .onTapGesture {
-                                        HapticManager.shared.selectionChanged()
-                                        selectedCity = city
-                                    }
+                        // City pin markers (visible when zoomed in)
+                        if shouldShowCityMarkers {
+                            ForEach(cityTracker.visitedCities) { city in
+                                Annotation("", coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)) {
+                                    PinMarkerView(cityName: city.name, showLabel: false)
+                                        .onTapGesture {
+                                            HapticManager.shared.selectionChanged()
+                                            selectedCity = city
+                                        }
+                                }
+                                .annotationTitles(.hidden)
                             }
-                            .annotationTitles(.hidden)
                         }
-                    }
 
-                    // Temporary pin for long-press location
-                    if let location = longPressLocation {
-                        Annotation("", coordinate: location) {
-                            PendingPinMarkerView(isLoading: isReverseGeocoding)
+                        // Temporary pin for long-press location
+                        if let location = longPressLocation {
+                            Annotation("", coordinate: location) {
+                                PendingPinMarkerView(isLoading: isReverseGeocoding)
+                            }
                         }
                     }
                 }
@@ -275,21 +279,37 @@ struct VisitedMapView: View {
         .onAppear {
             mapController.playIntroAnimation()
         }
+        .onDisappear {
+            // Clean up when view disappears to prevent resource leaks
+            cleanupAllTimers()
+            mapController.stopSpinAnimation()
+        }
         // Pause map rendering when app goes to background to prevent watchdog timeout
         .onChange(of: scenePhase) { _, newPhase in
-            // Stop spin animation when app goes to background (saves CPU/energy)
+            // CRITICAL ORDER: handleScenePhaseChange MUST be called FIRST
+            // This immediately sets isInBackground=true which stops overlay operations
+            // before MapKit has a chance to process any pending updates
             mapController.handleScenePhaseChange(newPhase)
 
-            switch newPhase {
-            case .background:
+            // Clean up local timers after controller state is set
+            if newPhase == .background || newPhase == .inactive {
+                cleanupAllTimers()
                 isMapActive = false
-            case .active:
+            }
+
+            if newPhase == .active {
                 // Small delay to ensure smooth transition back
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // Note: mapController.handleScenePhaseChange already delays re-enabling overlays
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     isMapActive = true
                 }
-            default:
-                break
+            }
+        }
+        // Listen for overlay refresh trigger from controller
+        .onChange(of: mapController.needsOverlayRefresh) { _, needsRefresh in
+            if needsRefresh {
+                // Reset the flag - the @Published change will trigger view update
+                mapController.needsOverlayRefresh = false
             }
         }
     }
@@ -344,6 +364,21 @@ struct VisitedMapView: View {
     private func cancelAddCity() {
         longPressLocation = nil
         pendingCityResult = nil
+    }
+
+    // MARK: - Timer Cleanup (Prevents Watchdog Crashes)
+
+    /// Clean up all active timers to prevent watchdog timeout when app backgrounds
+    private func cleanupAllTimers() {
+        pressTimer?.invalidate()
+        pressTimer = nil
+        progressTimer?.invalidate()
+        progressTimer = nil
+        pressStartTime = nil
+        hasFiredLongPress = false
+        isFingerDown = false
+        showTimerOverlay = false
+        timerProgress = 0.0
     }
 }
 

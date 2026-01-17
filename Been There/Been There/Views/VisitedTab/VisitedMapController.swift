@@ -14,20 +14,40 @@ import Combine
 
 enum GlobeStyleMode: String, CaseIterable {
     case globe = "Globe"        // .hybrid - 3D satellite globe with continent/country names
-    case flat = "Flat"          // .standard - flat map view, zoomed out to show world
+    case flat = "Flat"          // .standard - flat world map view
 }
 
 @MainActor
 class VisitedMapController: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
+    // MARK: - Background State Management (Prevents Watchdog Crashes)
+
+    /// Whether the app is currently in background - IMMEDIATELY set on scene change
+    /// Map overlays should check this flag and skip heavy operations when true
+    @Published private(set) var isInBackground = false
+
+    /// Flag to trigger overlay refresh when returning from background
+    @Published var needsOverlayRefresh = false
+
+    /// Overlay operations are deferred when this is true
+    var shouldDeferOverlayOperations: Bool {
+        isInBackground
+    }
+
     // Zoom distance for current location (5M meters = country/region level)
     private let locationZoomDistance: Double = 5_000_000
 
     // Zoom constraints
     private let minZoomDistance: Double = 1_000       // 1 km - street level
-    private let maxZoomDistance: Double = 40_000_000  // Full globe
+    private let maxGlobeDistance: Double = 40_000_000  // Full 3D globe view
+    private let maxFlatDistance: Double = 60_000_000   // Max flat map zoom (shows full world)
     private let zoomFactor: Double = 2.0              // 2x zoom per button press
+
+    // Dynamic max zoom based on current mode
+    private var maxZoomDistance: Double {
+        globeStyleMode == .globe ? maxGlobeDistance : maxFlatDistance
+    }
 
     // Track if intro animation is complete
     private var introAnimationComplete = false
@@ -55,7 +75,8 @@ class VisitedMapController: ObservableObject {
             // 3D satellite globe with continent/country names
             return .hybrid(elevation: .realistic, pointsOfInterest: .excludingAll)
         case .flat:
-            // Flat standard map - clean aesthetic
+            // Flat standard map - clean aesthetic with good world view
+            // Uses flat elevation for best zoomed-out appearance
             return .standard(elevation: .flat, pointsOfInterest: .excludingAll)
         }
     }
@@ -76,19 +97,16 @@ class VisitedMapController: ObservableObject {
         }
     }
 
-    /// Zoom out to show flat world map centered on user's location
+    /// Zoom out to show flat world map - optimized for best world view
     private func zoomToFlatWorld() {
-        // Use user's current location as center, or default to equator
-        let center: CLLocationCoordinate2D
-        if let userLocation = LocationManager.shared.currentLocation {
-            center = userLocation.coordinate
-        } else {
-            center = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-        }
+        // Center slightly north of equator for balanced view of continents
+        // This shows more landmass (most is in northern hemisphere)
+        let center = CLLocationCoordinate2D(latitude: 25, longitude: 10)
 
         self.currentCenter = center
-        // Zoom out to show full vertical extent (pole to pole) while allowing horizontal scroll
-        let flatMapDistance: Double = 120_000_000  // 120M meters - full vertical view
+        // Optimal zoom for flat map - shows entire world with good detail
+        // 60M meters gives a nice full-world view without excessive distortion
+        let flatMapDistance: Double = maxFlatDistance
 
         withAnimation(.easeOut(duration: 1.0)) {
             self.cameraPosition = .camera(
@@ -136,11 +154,13 @@ class VisitedMapController: ObservableObject {
         introAnimationComplete = true
     }
 
-    /// Start continuous spin animation (8 seconds per full rotation, 60 FPS smooth)
-    private func startSpinAnimation() {
+    /// Start spin animation (8 seconds per rotation, 60 FPS smooth)
+    /// Auto-stops after specified duration to prevent memory leak
+    /// - Parameter duration: How long to spin (default 15 seconds for auto-play, longer for manual)
+    func startSpinAnimation(duration: TimeInterval = 15.0) {
         guard !isSpinning else { return }
 
-        print("🔄 Starting globe spin animation")
+        print("🔄 Starting globe spin animation for \(Int(duration))s")
         isSpinning = true
         currentHeading = 0
         spinStartTime = Date()  // Set start time for grace period
@@ -154,12 +174,19 @@ class VisitedMapController: ObservableObject {
             let stepInterval: UInt64 = 16_666_666  // ~16.67ms per step (60 FPS)
             let degreesPerStep = 360.0 / (spinDuration * frameRate)  // 0.75° per step
 
-            print("🔄 Spin loop starting - distance: \(spinDistance), \(degreesPerStep)°/frame")
+            print("🔄 Spin loop starting - \(Int(frameRate)) FPS, auto-stop in \(Int(duration))s")
 
             var currentLongitude: Double = 0
             var frameCount = 0
+            let animationStartTime = Date()
 
             while !Task.isCancelled && isSpinning {
+                // Auto-stop after duration to prevent memory leak
+                if Date().timeIntervalSince(animationStartTime) > duration {
+                    print("🛑 Auto-stopping spin after \(Int(duration))s to save memory")
+                    break
+                }
+
                 // Rotate globe by changing longitude (not heading)
                 currentLongitude += degreesPerStep
                 if currentLongitude >= 180 { currentLongitude -= 360 }
@@ -179,33 +206,62 @@ class VisitedMapController: ObservableObject {
                 )
 
                 frameCount += 1
-                if frameCount % 60 == 0 {  // Log every 60 frames (~1 second)
+                if frameCount % 60 == 0 {  // Log every second
                     print("🔄 Spinning... longitude: \(Int(currentLongitude))°")
                 }
 
                 try? await Task.sleep(nanoseconds: stepInterval)
             }
-            print("🛑 Globe spin stopped after \(frameCount) frames")
+
+            // Clean up spin state
+            self.isSpinning = false
+            print("🛑 Globe spin stopped after \(frameCount) frames (\(frameCount / 60)s)")
         }
     }
 
-    /// Stop spin animation
+    /// Manually trigger globe spin (called from UI button)
+    func manualSpinGlobe() {
+        HapticManager.shared.buttonTap()
+        startSpinAnimation(duration: 15.0)  // 15 second spin when manually triggered
+    }
+
+    /// Stop spin animation - sets flag FIRST for immediate loop termination
     func stopSpinAnimation() {
-        guard isSpinning else { return }
-        print("⏹️ Stopping globe spin")
+        // Set flag FIRST to stop the while loop immediately (prevents race condition)
         isSpinning = false
         spinTask?.cancel()
         spinTask = nil
+        spinStartTime = nil
     }
 
-    /// Handle scene phase changes - stop spinning when app goes to background
+    /// Handle scene phase changes - stop ALL animations when app goes to background
+    /// This prevents watchdog timeout (0x8BADF00D) crashes
+    ///
+    /// CRITICAL: Sets isInBackground flag FIRST to immediately stop overlay operations
+    /// MapKit overlay updates can cause watchdog timeout if they run during scene transitions
     func handleScenePhaseChange(_ phase: ScenePhase) {
         switch phase {
         case .background, .inactive:
+            // CRITICAL: Set background flag FIRST - this immediately stops overlay operations
+            // Must happen before any other cleanup to prevent watchdog crash
+            isInBackground = true
+            print("[MapController] ⚠️ Entering background - overlay operations deferred")
+
+            // Cancel ALL animations immediately
+            introTask?.cancel()
+            introTask = nil
             stopSpinAnimation()
+
         case .active:
-            // Don't auto-resume - user already interacted by switching apps
-            break
+            // Delay slightly before re-enabling overlays to let the view settle
+            // This prevents a burst of overlay updates during transition
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self = self else { return }
+                self.isInBackground = false
+                self.needsOverlayRefresh = true
+                print("[MapController] ✅ Returning to foreground - overlays re-enabled")
+            }
+
         @unknown default:
             break
         }
@@ -279,7 +335,7 @@ class VisitedMapController: ObservableObject {
 
         // Update distance first to trigger map style change to imagery
         // This ensures we're in satellite mode before zooming out to globe
-        self.currentDistance = maxZoomDistance
+        self.currentDistance = maxGlobeDistance
 
         let globeCenter = CLLocationCoordinate2D(latitude: 20, longitude: 0)
         self.currentCenter = globeCenter
@@ -292,7 +348,7 @@ class VisitedMapController: ObservableObject {
                 self.cameraPosition = .camera(
                     MapCamera(
                         centerCoordinate: globeCenter,
-                        distance: maxZoomDistance,
+                        distance: maxGlobeDistance,
                         heading: 0,
                         pitch: 0
                     )
